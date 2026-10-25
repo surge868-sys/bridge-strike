@@ -214,6 +214,7 @@ export async function startSim(opts: SimOptions) {
         if (i !== loadIndex || phase !== 'dispatch') await reset({ load: i, phase: 'dispatch' });
         phase = 'drive';
         rig.launch(ROLL_KMH / 3.6);
+        ui.toast(`ROLLING · ${ROLL_KMH} km/h`);
         focusGame();
       },
     });
@@ -232,6 +233,7 @@ export async function startSim(opts: SimOptions) {
   window.addEventListener('keydown', (e) => {
     keys.add(e.code);
     if (phase === 'dispatch' && ['Enter', 'Space', 'KeyW', 'ArrowUp'].includes(e.code)) ui.rollOut();
+    if (phase === 'dispatch' && ['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD'].includes(e.code)) ui.dispatchMove?.(e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 1);
     if (e.code === 'KeyC') cycleCam();
     if (e.code === 'KeyT') { cycleTime(); ui.toast(timeById(timeOfDay).label); }
     if (e.code === 'KeyR' && phase !== 'dispatch') void reset({ rolling: true });

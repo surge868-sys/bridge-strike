@@ -69,38 +69,23 @@ const CSS = `
 .bs-strip{position:absolute;left:0;right:0;bottom:0;background:#111;color:#fff;font:600 13px Oswald,sans-serif;padding:8px 12px;text-align:center;pointer-events:auto;z-index:5}
 .bs-strip b{color:#f2c200}
 .bs-dispatch{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,14,8,.45);pointer-events:auto;z-index:4;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
-.bs-dispatch .sheet{background:#f7f3e8;color:#16130f;border:3px solid #16130f;border-radius:6px;width:min(94vw,440px);max-height:100%;overflow:auto;padding:14px 16px 12px;box-shadow:0 12px 40px rgba(0,0,0,.5);font-family:Oswald,sans-serif}
-.bs-dispatch .hdr{display:flex;justify-content:space-between;font:700 13px Oswald,sans-serif;letter-spacing:.14em;border-bottom:2px solid #16130f;padding-bottom:6px}
-.bs-dispatch .date{font:500 14px Oswald,sans-serif;letter-spacing:.08em;margin-top:8px;color:#5b5246}
-.bs-dispatch .name{font:42px/1 Anton,Impact,sans-serif;margin:2px 0 8px}
-.bs-dispatch .dims{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.bs-dispatch .dims div{background:#f2c200;border:2px solid #16130f;border-radius:6px;padding:4px 8px;font:700 11px Oswald,sans-serif;letter-spacing:.1em}
-.bs-dispatch .dims b{display:block;font:30px/1.05 Anton,Impact,sans-serif;letter-spacing:0}
-.bs-dispatch .dims div+div{background:#fff}
-.bs-dispatch .brief{font:500 15px/1.4 Oswald,sans-serif;margin:10px 0 6px}
-.bs-dispatch .route{font:500 12px/1.4 Oswald,sans-serif;color:#5b5246}
-.bs-dispatch .picks{display:flex;gap:6px;margin:10px 0}
-.bs-dispatch .pick{flex:1;min-width:0;border:2px solid #16130f;border-radius:6px;background:#fff;font:22px/1 Anton,Impact,sans-serif;padding:5px 0 3px;cursor:pointer;color:#16130f}
-.bs-dispatch .pick span{display:block;font:600 10px Oswald,sans-serif;letter-spacing:.06em;margin-top:2px}
-.bs-dispatch .pick.on{background:#0b6b3a;color:#fff}
-.bs-dispatch .pick:disabled{opacity:.45;cursor:default}
-.bs-dispatch .tod{display:flex;gap:4px;margin:0 0 8px}
-.bs-dispatch .tod .t{flex:1;min-width:0;border:2px solid #16130f;border-radius:5px;background:#fff;color:#16130f;font:700 11px Oswald,sans-serif;letter-spacing:.08em;padding:4px 0;cursor:pointer}
-.bs-dispatch .tod .t.on{background:#f2c200}
-.bs-dispatch .go{width:100%;margin-top:2px;background:#16130f;color:#fff;font:26px Anton,Impact,sans-serif;padding:10px;border-radius:8px;border:none;cursor:pointer}
-.bs-dispatch .howto{font:500 12px/1.4 Oswald,sans-serif;text-align:center;margin-top:8px;color:#5b5246}
-@media (max-height:540px){
-.bs-dispatch .sheet{width:min(96vw,780px);padding:10px 14px}
-.bs-dispatch .cols{display:grid;grid-template-columns:1fr 1fr;column-gap:18px;align-items:start}
-.bs-dispatch .name{font-size:30px;margin-bottom:6px}
-.bs-dispatch .dims b{font-size:22px}
-.bs-dispatch .brief{font-size:13px;margin:6px 0 0}
-.bs-dispatch .route{margin-top:8px}
-.bs-dispatch .picks{margin:8px 0}
-.bs-dispatch .tod{display:flex;gap:4px;margin:0 0 8px}
-.bs-dispatch .tod .t{flex:1;min-width:0;border:2px solid #16130f;border-radius:5px;background:#fff;color:#16130f;font:700 11px Oswald,sans-serif;letter-spacing:.08em;padding:4px 0;cursor:pointer}
-.bs-dispatch .tod .t.on{background:#f2c200}
+.bs-dispatch .sheet{background:#f7f3e8;color:#16130f;border:3px solid #16130f;border-radius:8px;width:min(92vw,400px);max-height:100%;overflow:auto;padding:14px 16px;box-shadow:0 12px 40px rgba(0,0,0,.5);font-family:Oswald,sans-serif;text-align:center}
+.bs-dispatch .nav{display:flex;align-items:center;justify-content:space-between;font:700 13px Oswald,sans-serif;letter-spacing:.12em;color:#5b5246}
+.bs-dispatch .nav button{width:40px;height:34px;border:2px solid #16130f;border-radius:6px;background:#fff;color:#16130f;font:22px/1 Anton,Impact,sans-serif;cursor:pointer}
+.bs-dispatch .nav button:disabled{opacity:.35;cursor:default}
+.bs-dispatch .name{font:38px/1 Anton,Impact,sans-serif;margin:10px 0 10px}
+.bs-dispatch .tall{display:inline-block;background:#f2c200;border:3px solid #16130f;border-radius:8px;padding:4px 16px 2px;font:44px/1 Anton,Impact,sans-serif}
+.bs-dispatch .tall small{font:700 13px Oswald,sans-serif;letter-spacing:.12em;margin-left:6px}
+.bs-dispatch .brief{font:500 15px/1.35 Oswald,sans-serif;margin:10px 0 12px}
+.bs-dispatch .go{width:100%;background:#16130f;color:#fff;font:28px Anton,Impact,sans-serif;padding:12px;border-radius:8px;border:none;cursor:pointer}
+.bs-dispatch .tod{margin-top:10px;background:none;border:none;color:#5b5246;font:700 12px Oswald,sans-serif;letter-spacing:.12em;cursor:pointer;padding:4px 8px}
+@media (max-height:480px){
+.bs-dispatch .sheet{padding:10px 14px}
+.bs-dispatch .name{font-size:28px;margin:6px 0}
+.bs-dispatch .tall{font-size:32px}
+.bs-dispatch .brief{font-size:13px;margin:6px 0 8px}
 .bs-dispatch .go{font-size:22px;padding:8px}
+.bs-dispatch .tod{margin-top:4px}
 }
 .bs-keys{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;font:500 12px Oswald,sans-serif;padding:6px 10px;border-radius:8px;line-height:1.5}
 @media (pointer:coarse){.bs-keys{display:none}}
@@ -277,37 +262,32 @@ export class UI {
     const render = () => {
       const d = o.loads[sel];
       el.innerHTML = `<div class="sheet">
-        <div class="hdr"><span>DISPATCH</span><span>LOAD ${d.id} OF ${o.loads.length}</span></div>
-        <div class="cols"><div class="colA">
-        <div class="date">${d.date.toUpperCase()}, 2026</div>
+        <div class="nav"><button class="prev" ${sel === 0 ? 'disabled' : ''} aria-label="Previous load">‹</button>
+          <span>LOAD ${d.id} OF ${o.loads.length} · ${d.date.toUpperCase()}</span>
+          <button class="next" ${sel >= o.unlocked ? 'disabled' : ''} aria-label="Next load">${sel >= o.unlocked && sel < o.loads.length - 1 ? '🔒' : '›'}</button></div>
         <div class="name">${d.name.toUpperCase()}</div>
-        <div class="dims"><div><b>${d.top.toFixed(2)} m</b>TOP OF LOAD</div><div><b>${(d.top - 0.3).toFixed(2)} m</b>LOWERED</div></div>
+        <div class="tall">${d.top.toFixed(2)} m<small>TALL</small></div>
         <p class="brief">${d.briefing}</p>
-        </div><div class="colB">
-        <div class="route">Highway 11 north into Saskatoon · 6 overpasses · real strike site: ${d.where}</div>
-        <div class="picks">${o.loads.map((l, i) => `<button class="pick${i === sel ? ' on' : ''}" data-i="${i}" ${i > o.unlocked ? 'disabled' : ''}>${l.id}<span>${i > o.unlocked ? 'LOCKED' : l.date}</span></button>`).join('')}</div>
-        <div class="tod">${o.times.map((t) => `<button class="t${t.id === time ? ' on' : ''}" data-t="${t.id}">${t.label}</button>`).join('')}</div>
-        <button class="go roll">${this.touchMode ? 'TAP' : 'CLICK'} TO ROLL OUT</button>
-        <div class="howto">${this.touchMode ? 'Wheel bottom-left · pedals bottom-right · hold LOWER LOAD to drop the deck 30 cm' : 'W / S gas and brake · A / D steer · hold SPACE to lower 30 cm · J jake · C camera · T time of day · R restart'}</div>
-        </div></div>
+        <button class="go roll">ROLL OUT</button>
+        <button class="tod">☀ ${o.times.find((t) => t.id === time)?.label ?? ''} · CHANGE</button>
       </div>`;
-      el.querySelectorAll<HTMLButtonElement>('.pick').forEach((b) => b.addEventListener('pointerdown', (e) => {
+      const move = (dir: number) => { sel = Math.max(0, Math.min(o.unlocked, sel + dir)); render(); };
+      el.querySelector('.prev')!.addEventListener('pointerdown', (e) => { e.stopPropagation(); move(-1); });
+      el.querySelector('.next')!.addEventListener('pointerdown', (e) => { e.stopPropagation(); move(1); });
+      el.querySelector('.tod')!.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
-        if (b.disabled) return;
-        sel = +b.dataset.i!;
-        render();
-      }));
-      el.querySelectorAll<HTMLButtonElement>('.tod .t').forEach((b) => b.addEventListener('pointerdown', (e) => {
-        e.stopPropagation();
-        time = b.dataset.t!;
+        const i = o.times.findIndex((t) => t.id === time);
+        time = o.times[(i + 1) % o.times.length].id;
         o.onTime(time);
         render();
-      }));
+      });
+      this.dispatchMove = move;
       el.querySelector('.roll')!.addEventListener('pointerdown', (e) => { e.preventDefault(); roll(); });
     };
     const roll = () => {
       if (!this.dispatch) return;
       this.dispatch = null;
+      this.dispatchMove = null;
       el.remove();
       o.onRoll(sel);
     };
@@ -319,6 +299,9 @@ export class UI {
   rollOut() {
     this.dispatch?.roll();
   }
+
+  /** Arrow keys on the dispatch sheet step through unlocked loads. */
+  dispatchMove: ((dir: number) => void) | null = null;
 
   toast(text: string, ms = 1800) {
     const t = this.els.toast;
