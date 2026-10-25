@@ -1,0 +1,17 @@
+{
+  "model": "fal-ai/nano-banana-pro",
+  "settings": { "aspect_ratio": "16:9", "resolution": "2K" },
+  "note": "Originals (2752x1536 PNG) live in assets/raw/concepts (gitignored). These JPEGs are 1376px previews. Prompts are in scripts/assets/concept-prompts.json.",
+  "sheets": {
+    "01-tractor": "01a17123-6636-72e0-b4be-4688cea12ffd",
+    "02-trailer": "01a17123-6689-7ec2-a0ad-7eabcebdff8e",
+    "03-load1-trackhoe": "01a17123-66b0-7180-a203-bf879b39e02c",
+    "04-load2-excavator": "01a17123-668b-7f02-9978-36be6381e8eb",
+    "05-load3-heavy": "01a17123-668c-74e2-98bc-7274c6426c25",
+    "06-load4-grainbin": "01a17123-6687-7043-b44d-cef9ab5a8509",
+    "07-load5-hoppers": "01a17123-66b3-71a2-a4e3-54c69aeefb6c",
+    "08-overpass-concrete": "01a17123-66b1-7c32-8e02-7accd01b501c",
+    "09-overpass-rail": "01a17123-a53b-7232-8924-e38388cd2b00",
+    "10-roadside": "01a17123-a599-74b1-b1ac-01aa79204b53"
+  }
+}
