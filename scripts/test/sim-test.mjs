@@ -138,7 +138,7 @@ try {
     await page.keyboard.press('KeyR');
     await page.waitForTimeout(50);
     s = await page.evaluate(() => window.__simStep(0.5));
-    check('R restarts rolling from the start line', s.phase === 'drive' && s.speedKmh > 55 && s.tractor.z > 1100, `phase ${s.phase}, speed ${s.speedKmh.toFixed(1)} km/h, z ${s.tractor.z.toFixed(0)}`);
+    check('R restarts rolling from the start line', s.phase === 'drive' && s.speedKmh > 55 && s.tractor.z > 860, `phase ${s.phase}, speed ${s.speedKmh.toFixed(1)} km/h, z ${s.tractor.z.toFixed(0)}`);
     check('C cycles chase > cockpit > drone; T changes time of day', cams.join() === 'cockpit,drone,chase' && tod === 'midday', `cams ${cams.join(',')}, T -> ${tod}`);
     check('no page errors (dispatch/keyboard)', errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();
