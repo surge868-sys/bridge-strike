@@ -24,6 +24,8 @@ export interface Overpass {
   spans: LaneSpan[];
   group: THREE.Group;
   strikeColliders: Set<number>;
+  /** Where the girders' approach face sits (soffit height) over the northbound lanes. */
+  faceZ: number;
   halfZ: number; // half the structure's depth along the highway
   /** Soffit height above the road at a given x (northbound side). */
   clearanceAt(x: number): number;
@@ -234,19 +236,62 @@ export function buildOverpass(
     const s = spans.find((sp) => x >= sp.min && x <= sp.max);
     return s ? s.clearance : Infinity;
   };
-  return { def, spans, group, strikeColliders, halfZ: HALF_Z, clearanceAt };
+  return { def, spans, group, strikeColliders, faceZ: def.z + HALF_Z, halfZ: HALF_Z, clearanceAt };
+}
+
+/** Remove an overpass's meshes and colliders (the route is rebuilt per load). */
+export function destroyOverpass(scene: THREE.Scene, world: RAPIER.World, op: Overpass) {
+  for (const h of op.strikeColliders) {
+    const c = world.getCollider(h);
+    if (c) world.removeCollider(c, false);
+  }
+  scene.remove(op.group);
+  op.group.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    m.geometry.dispose();
+    const mat = m.material as THREE.MeshStandardMaterial;
+    mat.map?.dispose();
+    mat.dispose();
+  });
 }
 
 // The drive: Highway 11 north into the city through six overpasses, in the order
-// they are met (the truck drives toward -z). A composite route with real names;
-// per-lane clearances are the approved gameplay values (northbound left, right).
+// they are met (the truck drives toward -z). A composite route with real names.
 export const START_Z = 870; // ~160 m before the first overpass: about 10 s at the rolling-start speed
 export const DELIVERY_Z = -720; // city limits: the load is delivered once the trailer is past
-export const ROUTE: OverpassDef[] = [
-  { id: 'hwy16-circle', name: 'HWY 16 · CIRCLE DR', z: 700, kind: 'concrete', clearance: [4.7, 5.1] },
-  { id: '108th', name: '108TH STREET', z: 470, kind: 'concrete', clearance: [5.2, 4.95] },
-  { id: 'cpkc', name: 'CPKC RAIL BRIDGE', z: 240, kind: 'rail', clearance: [5.4, 5.0] },
-  { id: 'mckercher', name: 'MCKERCHER DRIVE', z: 10, kind: 'concrete', clearance: [4.85, 5.25] },
-  { id: '51st', name: '51ST STREET', z: -220, kind: 'concrete', clearance: [5.05, 5.45] },
-  { id: 'cn-idylwyld', name: 'CN RAIL · IDYLWYLD', z: -450, kind: 'rail', clearance: [5.15, 4.8] },
+export const ROUTE: Omit<OverpassDef, 'clearance'>[] = [
+  { id: 'hwy16-circle', name: 'HWY 16 · CIRCLE DR', z: 700, kind: 'concrete' },
+  { id: '108th', name: '108TH STREET', z: 470, kind: 'concrete' },
+  { id: 'cpkc', name: 'CPKC RAIL BRIDGE', z: 240, kind: 'rail' },
+  { id: 'mckercher', name: 'MCKERCHER DRIVE', z: 10, kind: 'concrete' },
+  { id: '51st', name: '51ST STREET', z: -220, kind: 'concrete' },
+  { id: 'cn-idylwyld', name: 'CN RAIL · IDYLWYLD', z: -450, kind: 'rail' },
 ];
+
+// Clearances are posted around each load's height, so every bridge is a decision:
+// F fits as is, L fits only lowered (the deck drops 0.30 m), N cannot be cleared.
+// [left, right] per overpass; the run starts in the right lane. Harder load by load.
+type Code = 'F' | 'L' | 'N';
+const PATTERNS: [Code, Code][][] = [
+  [['F', 'L'], ['F', 'F'], ['L', 'F'], ['F', 'L'], ['F', 'F'], ['N', 'F']],
+  [['F', 'L'], ['N', 'F'], ['L', 'F'], ['F', 'N'], ['L', 'L'], ['F', 'L']],
+  [['L', 'N'], ['F', 'L'], ['N', 'L'], ['L', 'F'], ['L', 'L'], ['N', 'F']],
+  [['N', 'L'], ['L', 'L'], ['F', 'N'], ['N', 'L'], ['L', 'N'], ['L', 'L']],
+  [['L', 'N'], ['N', 'L'], ['L', 'L'], ['N', 'L'], ['L', 'N'], ['N', 'L']],
+];
+// Offsets from the load's top, in metres. L leaves 0.10-0.25 m once lowered; N is
+// at least 0.05 m too low even lowered.
+const OFFSETS: Record<Code, number[]> = { F: [0.1, 0.15, 0.25, 0.35], L: [-0.05, -0.1, -0.15, -0.2], N: [-0.35, -0.4, -0.5] };
+
+export function routeFor(loadIndex: number, loadTop: number): OverpassDef[] {
+  const pattern = PATTERNS[Math.min(loadIndex, PATTERNS.length - 1)];
+  return ROUTE.map((r, i) => {
+    const pick = (code: Code, lane: number) => {
+      const opts = OFFSETS[code];
+      const h = Math.abs(Math.sin((loadIndex + 1) * 12.9898 + (i + 1) * 78.233 + lane * 37.719) * 43758.5453) % 1;
+      return Math.round((loadTop + opts[Math.floor(h * opts.length)]) * 100) / 100;
+    };
+    return { ...r, clearance: [pick(pattern[i][0], 0), pick(pattern[i][1], 1)] as [number, number] };
+  });
+}

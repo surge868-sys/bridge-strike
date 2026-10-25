@@ -64,6 +64,11 @@ const CSS = `
 .bs-card tr.total td{border-bottom:none;font:700 18px Oswald,sans-serif;padding-top:8px}
 .bs-card .btns{display:flex;gap:8px;justify-content:center;margin-top:12px}.bs-card .go.alt{background:#fff;color:#111;border:2px solid #111}.bs-card.delivered h1{color:#0b6b3a}
 .bs-card .go{display:inline-block;background:#111;color:#fff;font:22px Anton,Impact,sans-serif;padding:8px 22px;border-radius:10px;cursor:pointer;border:none}
+.bs-replay{position:absolute;inset:0;display:none;pointer-events:auto;z-index:3;cursor:pointer}
+.bs-replay .tag{position:absolute;left:50%;top:max(150px,22%);transform:translateX(-50%);background:#111;color:#fff;border:3px solid #fff;border-radius:8px;padding:4px 14px 2px;font:30px Anton,Impact,sans-serif;letter-spacing:.06em}
+.bs-replay .tag i{display:inline-block;width:14px;height:14px;border-radius:50%;background:#e23b2e;margin-right:10px;vertical-align:4px;animation:bsblink 1s steps(2) infinite}
+.bs-replay .skip{position:absolute;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);color:#fff;font:700 13px Oswald,sans-serif;letter-spacing:.14em;text-shadow:0 1px 3px #000}
+@keyframes bsblink{50%{opacity:0}}
 .bs-toast{position:absolute;left:50%;top:32%;transform:translateX(-50%);background:#0b6b3a;color:#fff;border:3px solid #fff;border-radius:10px;padding:8px 18px;font:34px Anton,Impact,sans-serif;opacity:0;transition:opacity .3s}
 .bs-toast.show{opacity:1}
 .bs-strip{position:absolute;left:0;right:0;bottom:0;background:#111;color:#fff;font:600 13px Oswald,sans-serif;padding:8px 12px;text-align:center;pointer-events:auto;z-index:5}
@@ -115,6 +120,7 @@ export class UI {
   onCam: () => void = () => {};
   onRestart: () => void = () => {};
   onDispatch: (next?: number) => void = () => {};
+  onSkipReplay: () => void = () => {};
   touchMode = false;
   private dispatch: { el: HTMLDivElement; roll: () => void } | null = null;
   private els: Record<string, HTMLElement> = {};
@@ -136,6 +142,7 @@ export class UI {
       <div class="bs-sign bs-guide" data-k="guide"><div class="t" data-k="gt">NEXT OVERPASS</div><div class="n" data-k="gn"></div><div class="d" data-k="gd"></div><div class="bs-chips" data-k="chips"></div></div>
       <div class="bs-sign bs-load" data-k="load"><div class="dia"></div><div class="txt"><div class="t">LOAD</div><div class="v" data-k="lh">0.00</div><div class="s" data-k="ls">m</div></div></div>
       <div class="bs-toast" data-k="toast"></div>
+      <div class="bs-replay" data-k="replay"><div class="tag"><i></i>REPLAY</div><div class="skip">TAP TO SKIP</div></div>
 
       <div class="bs-keys">W/S gas &amp; brake · A/D steer · hold SPACE lower · J jake · C camera · T time · R restart</div>
       <div class="bs-ctrl bs-wheel" data-k="wheel"><div class="spoke"></div><div class="spoke v"></div></div>
@@ -168,6 +175,7 @@ export class UI {
       e.preventDefault();
     });
     this.els.cam.addEventListener('pointerdown', (e) => { this.onCam(); e.preventDefault(); });
+    this.els.replay.addEventListener('pointerdown', (e) => { this.onSkipReplay(); e.preventDefault(); });
 
     // Steering wheel: drag around the centre; 135 degrees each way is full lock.
     const wheel = this.els.wheel;
@@ -368,6 +376,10 @@ export class UI {
     c.querySelectorAll<HTMLButtonElement>('.go').forEach((b) => b.addEventListener('click', () => buttons[+b.dataset.i!][1]()));
     this.root.appendChild(c);
     this.card = c;
+  }
+
+  setReplay(on: boolean) {
+    this.els.replay.style.display = on ? 'block' : 'none';
   }
 
   hideCard() {

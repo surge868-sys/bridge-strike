@@ -80,6 +80,8 @@ export class Rig {
   lower = 0; // 0 = up, 1 = fully lowered
   loadOffsetY = 0; // calibration offset
   calibrated = false;
+  /** Seconds since a strike (negative: none). The load visibly shoves back and tips. */
+  knock = -1;
   calibrationError = 0;
   loadSize = new THREE.Vector3();
   loadCenter = new THREE.Vector3();
@@ -298,6 +300,12 @@ export class Rig {
     }
   }
 
+  /** World position of the load's front-top edge: where it meets the girders. */
+  impactPoint() {
+    const p = localToWorld(this.trailerBody, { x: this.loadCenter.x, y: this.envelopeY() + this.loadSize.y / 2, z: LOAD_Z + this.loadCenter.z - this.loadSize.z / 2 });
+    return new THREE.Vector3(p.x, p.y, p.z);
+  }
+
   /** Top of the load envelope above the road under it. */
   loadTopAboveRoad() {
     const top = localToWorld(this.trailerBody, { x: this.loadCenter.x, y: this.envelopeY() + this.loadSize.y / 2, z: LOAD_Z + this.loadCenter.z });
@@ -324,6 +332,17 @@ export class Rig {
     const drop = this.lower * LOWER_BY;
     if (this.deckNode) this.deckNode.position.y = -drop;
     this.loadGroup.position.set(0, DECK_TOP + this.loadOffsetY - drop, LOAD_Z);
+    this.loadGroup.rotation.set(0, 0, 0);
+    if (this.knock >= 0) {
+      // Spring toward the shoved pose with one overshoot: tipped back about the
+      // rear-bottom edge, slid back on the deck and twisted a little.
+      const t = this.knock;
+      const e = 1 - Math.exp(-t * 9) * Math.cos(t * 14);
+      const th = 0.2 * e, pz = this.loadCenter.z + this.loadSize.z / 2;
+      this.loadGroup.rotation.set(th, 0.07 * e, -0.03 * e);
+      this.loadGroup.position.y += pz * Math.sin(th);
+      this.loadGroup.position.z += pz * (1 - Math.cos(th)) + 0.45 * e;
+    }
     for (const { rod } of this.rams) rod.scale.y = Math.max(0.02, rod.userData.top - (DECK_TOP - drop));
 
     for (const w of this.wheelMeshes) {

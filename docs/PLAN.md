@@ -154,3 +154,21 @@ Because downloads are blocked, M0 can only do the concept sheets until the hosts
   billboards, so they turn to face you. On phones the pixel ratio is capped at 1.75 to
   pay for the post stack, and frame rate on real phones hasn't been measured (CI runs
   swiftshader).
+
+## After M3: playtest changes (Oct 25)
+
+- **Rolling start**: runs begin at 60 km/h, 160 m before the first overpass. The rig
+  settles and calibrates during reset, so a run never waits for it to stop.
+- **Simpler dispatch**: load name, one height badge, the joke, ROLL OUT, and a one-line
+  time-of-day toggle; ‹ › (or arrow keys / A, D) step through unlocked loads.
+- **Plates posted per load** (replaces the fixed clearance table, approved in chat):
+  with fixed plates, load 1 only ever met one bad lane. Now every overpass is posted
+  around the current load's height from a per-load pattern of F (fits), L (fits only
+  lowered, 0.10-0.25 m to spare) and N (cannot clear even lowered); the route is rebuilt
+  when the load changes. Load 1 starts in a lane that needs lowering at the very
+  first bridge; load 5 has to lower and pick the right lane at every bridge.
+- **Strike sequence** (pulled forward from M4): debris (concrete chunks, or rust flakes
+  and sparks off a rail bridge) and dust, all a pure function of time since impact;
+  the load shoves back and tips on the deck; camera shake; a procedural crunch, thump
+  and (rail) clang; then a slow-motion replay of the last 1.9 s from a low side angle,
+  REPLAY tag, tap or Enter to skip, then the bill card.

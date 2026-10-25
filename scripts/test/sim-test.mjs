@@ -82,25 +82,32 @@ try {
 
     await page.evaluate(() => window.__simDebug.reset({ load: 0 }));
     await page.evaluate(() => window.__simStep(2));
-    let end = await routeBot(page, { force: { lane: 'LEFT', lower: false } });
-    check('negative bot: load 1 in the 4.70 m lane without lowering strikes Hwy 16', end.phase === 'strike' && end.struck?.at === 'hwy16-circle' && end.struck?.by === 'load', `phase ${end.phase}, struck ${JSON.stringify(end.struck)}`);
+    let lanes = await page.evaluate(() => window.__sim().next.lanes.map((l) => l.clearance.toFixed(2)).join(' / '));
+    let end = await routeBot(page, { force: { lane: 'RIGHT', lower: false } });
+    check(`negative bot: load 1 (4.75 m) unlowered in the right lane (plates ${lanes}) strikes Hwy 16`, end.phase === 'strike' && end.struck?.at === 'hwy16-circle' && end.struck?.by === 'load', `phase ${end.phase}, struck ${JSON.stringify(end.struck)}`);
 
     await page.evaluate(() => window.__simDebug.reset({ load: 3, z: 400 }));
     await page.evaluate(() => window.__simStep(2));
-    end = await routeBot(page, { force: { lane: 'RIGHT', lower: false } });
-    check('negative bot: grain bin (5.20 m) in the 5.00 m lane strikes the CPKC rail bridge', end.phase === 'strike' && end.struck?.at === 'cpkc', `phase ${end.phase}, struck ${JSON.stringify(end.struck)}`);
+    lanes = await page.evaluate(() => window.__sim().next.lanes.map((l) => l.clearance.toFixed(2)).join(' / '));
+    end = await routeBot(page, { force: { lane: 'RIGHT', lower: true } });
+    check(`negative bot: grain bin (5.20 m) fully lowered in the no-go lane (plates ${lanes}) still strikes CPKC`, end.phase === 'strike' && end.struck?.at === 'cpkc', `phase ${end.phase}, struck ${JSON.stringify(end.struck)}`);
+    // strike sequence: live impact, slow-motion replay, then the bill
+    const stages = [];
+    for (const secs of [0.3, 1.0, 5.0]) stages.push((await page.evaluate((x) => window.__simStep(x), secs)).strikeStage);
+    const card = await page.isVisible('.bs-card');
+    check('strike plays live, then a replay, then the bill card', stages.join() === 'live,replay,done' && card, `stages ${stages.join(' > ')}, card ${card}`);
 
     // rollover: hard in-lane swerves at speed
-    // Load 1 in the right lane fits the first overpass, so nothing else ends the run.
-    await page.evaluate(() => window.__simDebug.reset({ load: 0, z: 930 }));
+    // Load 1 held lowered clears the first two overpasses in either lane, so nothing else ends the run.
+    await page.evaluate(() => window.__simDebug.reset({ load: 0, z: 1250 }));
     s = await page.evaluate(() => {
       window.__simStep(2);
       let st = window.__sim();
-      window.__simInput({ throttle: 1, steer: 0 });
+      window.__simInput({ throttle: 1, steer: 0, lower: true });
       for (let k = 0; k < 120 && st.speedKmh < 85 && st.phase === 'drive'; k++) st = window.__simStep(0.5);
       let minUp = 1;
       for (const [steer, secs] of [[1, 1.0], [-1, 1.4], [1, 1.4], [-1, 1.0], [0, 3]]) {
-        window.__simInput({ throttle: 1, steer });
+        window.__simInput({ throttle: 1, steer, lower: true });
         for (let k = 0; k < secs * 10; k++) { st = window.__simStep(0.1); minUp = Math.min(minUp, st.tractor.up, st.trailer.up); }
       }
       window.__simInput(null);
@@ -173,7 +180,11 @@ try {
     await page.evaluate(() => window.__simDebug.reset({ load: 3, z: 400 }));
     await page.evaluate(() => window.__simStep(2));
     await routeBot(page, { force: { lane: 'RIGHT', lower: false } });
-    await page.evaluate(() => window.__simStep(2.5));
+    await page.evaluate(() => window.__simStep(0.35));
+    await shot(page, 'desktop-strike-impact', 0.05);
+    await page.evaluate(() => window.__simStep(1.6));
+    await shot(page, 'desktop-strike-replay', 0.05);
+    await page.evaluate(() => window.__simStep(5));
     await shot(page, 'desktop-strike-rail-card');
     await page.evaluate(() => window.__simDebug.reset({ load: 1, z: -400 }));
     await page.evaluate(() => window.__simStep(2));
