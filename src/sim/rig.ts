@@ -288,6 +288,16 @@ export class Rig {
     this.trailer.preStep(dt);
   }
 
+  /** Rolling start: set both bodies moving forward (body -z) at `speed` m/s. */
+  launch(speed: number) {
+    for (const b of [this.tractorBody, this.trailerBody]) {
+      const q = b.rotation();
+      const fx = -(2 * (q.x * q.z + q.w * q.y)), fz = -(1 - 2 * (q.x * q.x + q.y * q.y));
+      const lv = b.linvel();
+      b.setLinvel({ x: fx * speed, y: lv.y, z: fz * speed }, true);
+    }
+  }
+
   /** Top of the load envelope above the road under it. */
   loadTopAboveRoad() {
     const top = localToWorld(this.trailerBody, { x: this.loadCenter.x, y: this.envelopeY() + this.loadSize.y / 2, z: LOAD_Z + this.loadCenter.z });

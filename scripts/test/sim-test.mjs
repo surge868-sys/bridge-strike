@@ -118,8 +118,10 @@ try {
     const visible = await page.isVisible('.bs-dispatch');
     await shot(page, 'desktop-dispatch');
     await page.click('.bs-dispatch .roll');
-    let s = await page.evaluate(() => window.__sim());
+    let s = await page.evaluate(() => window.__simStep(0.5));
     const rolled = s.phase === 'drive' && !(await page.isVisible('.bs-dispatch'));
+    const rollKmh = s.speedKmh, rollStable = s.tractor.contacts === 6 && s.trailer.contacts === 6 && Math.abs(s.heading) < 0.01;
+    check('rolling start: ROLL OUT launches the rig at about 60 km/h, settled and calibrated', rollKmh > 55 && rollKmh < 63 && rollStable && s.calibrated && Math.abs(s.calibrationError) < 0.3, `speed ${rollKmh.toFixed(1)} km/h, contacts ${s.tractor.contacts}/${s.trailer.contacts}, heading ${s.heading.toFixed(4)}, calibrated ${s.calibrated} (err ${s.calibrationError.toFixed(3)})`);
     await page.keyboard.down('KeyW');
     s = await page.evaluate(() => window.__simStep(3));
     await page.keyboard.up('KeyW');
@@ -133,6 +135,10 @@ try {
     await page.keyboard.press('KeyT');
     const tod = (await page.evaluate(() => window.__sim())).timeOfDay;
     await page.evaluate(() => window.__simDebug.setTime('golden'));
+    await page.keyboard.press('KeyR');
+    await page.waitForTimeout(50);
+    s = await page.evaluate(() => window.__simStep(0.5));
+    check('R restarts rolling from the start line', s.phase === 'drive' && s.speedKmh > 55 && s.tractor.z > 1100, `phase ${s.phase}, speed ${s.speedKmh.toFixed(1)} km/h, z ${s.tractor.z.toFixed(0)}`);
     check('C cycles chase > cockpit > drone; T changes time of day', cams.join() === 'cockpit,drone,chase' && tod === 'midday', `cams ${cams.join(',')}, T -> ${tod}`);
     check('no page errors (dispatch/keyboard)', errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();

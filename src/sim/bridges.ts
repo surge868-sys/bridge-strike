@@ -240,7 +240,7 @@ export function buildOverpass(
 // The drive: Highway 11 north into the city through six overpasses, in the order
 // they are met (the truck drives toward -z). A composite route with real names;
 // per-lane clearances are the approved gameplay values (northbound left, right).
-export const START_Z = 930;
+export const START_Z = 1120; // ~410 m before the first overpass: about 25 s at the rolling-start speed
 export const DELIVERY_Z = -720; // city limits: the load is delivered once the trailer is past
 export const ROUTE: OverpassDef[] = [
   { id: 'hwy16-circle', name: 'HWY 16 · CIRCLE DR', z: 700, kind: 'concrete', clearance: [4.7, 5.1] },

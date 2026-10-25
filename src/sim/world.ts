@@ -11,7 +11,7 @@ export const ROAD = {
   innerShoulder: 1,
   lane: 3.7,
   outerShoulder: 2.6,
-  half: 1000, // terrain and road run z in [-1000, 1000]
+  half: 1300, // physics road and heightfield run z in [-1300, 1300]
 };
 export const NB = {
   innerEdge: ROAD.medianHalf + ROAD.innerShoulder, // 8.0
@@ -288,7 +288,7 @@ export function buildWorld(scene: THREE.Scene, world: RAPIER.World, tex: GroundT
       .setFriction(1.0)
       .setCollisionGroups(groups(G.GROUND, 0xffff)),
   );
-  const N = 256;
+  const N = 320;
   const size = ROAD.half * 2;
   const heights = new Float32Array((N + 1) * (N + 1));
   // Rapier heightfields are column-major: element (row i along z, col j along x) at i + j*(N+1).

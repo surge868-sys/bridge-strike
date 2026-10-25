@@ -26,6 +26,7 @@ const COCKPIT_EYE = new THREE.Vector3(-0.35, 2.6, -2.8);
 const START = { x: LANES[1].center, z: START_Z };
 const TRAILER_REAR = 7.8; // trailer rear in trailer space (+z)
 const TRACTOR_FRONT = 4.4;
+const ROLL_KMH = 60; // runs start already moving
 const PROGRESS_KEY = 'bridge-strike:delivered';
 const TIME_KEY = 'bridge-strike:time';
 
@@ -172,12 +173,23 @@ export async function startSim(opts: SimOptions) {
   let hookInput: Partial<RigControls> | null = null;
   let snapCamera = true;
 
-  const reset = async (o: { load?: number; x?: number; z?: number; phase?: Phase } = {}) => {
+  // Let the springs take the weight and calibrate the envelope before the run starts,
+  // so a rolling start never has to wait for the rig to sit still.
+  const settle = () => {
+    rig.setControls({ throttle: 0, brake: 0, steer: 0, lower: false, jake: false }); // parked: hold brake + creep clamp
+    for (let i = 0; i < 180; i++) { rig.preStep(STEP); world.step(queue); }
+    queue.drainCollisionEvents(() => {});
+    rig.calibrate();
+  };
+
+  const reset = async (o: { load?: number; x?: number; z?: number; phase?: Phase; rolling?: boolean } = {}) => {
     if (o.load !== undefined) loadIndex = o.load;
     rig?.destroy();
     const def = LOADS[loadIndex];
     rig = new Rig(world, scene, { tractor: tractor.clone(), trailer: trailer.clone(), wheel, load: await getLoad(def) }, def, { x: o.x ?? START.x, z: o.z ?? START.z });
     attachLenses();
+    settle();
+    if (o.rolling) rig.launch(ROLL_KMH / 3.6);
     phase = o.phase ?? 'drive';
     simTime = driveTime = 0;
     timeScale = 1;
@@ -201,6 +213,7 @@ export async function startSim(opts: SimOptions) {
       onRoll: async (i) => {
         if (i !== loadIndex || phase !== 'dispatch') await reset({ load: i, phase: 'dispatch' });
         phase = 'drive';
+        rig.launch(ROLL_KMH / 3.6);
         focusGame();
       },
     });
@@ -221,13 +234,13 @@ export async function startSim(opts: SimOptions) {
     if (phase === 'dispatch' && ['Enter', 'Space', 'KeyW', 'ArrowUp'].includes(e.code)) ui.rollOut();
     if (e.code === 'KeyC') cycleCam();
     if (e.code === 'KeyT') { cycleTime(); ui.toast(timeById(timeOfDay).label); }
-    if (e.code === 'KeyR' && phase !== 'dispatch') void reset();
+    if (e.code === 'KeyR' && phase !== 'dispatch') void reset({ rolling: true });
     if (e.code === 'Space') e.preventDefault();
   });
   window.addEventListener('keyup', (e) => keys.delete(e.code));
   window.addEventListener('blur', () => keys.clear());
   ui.onCam = () => cycleCam();
-  ui.onRestart = () => void reset();
+  ui.onRestart = () => void reset({ rolling: true });
   ui.onDispatch = (next) => { void reset({ load: next ?? loadIndex, phase: 'dispatch' }).then(() => openDispatch(next ?? loadIndex)); };
 
   const readControls = (dt: number): RigControls => {
