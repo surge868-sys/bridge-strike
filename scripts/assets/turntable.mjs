@@ -9,7 +9,9 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Playwright is preinstalled globally (its Chromium lives at /opt/pw-browsers); resolve it via require.
 const { chromium } = createRequire(import.meta.url)('playwright');
-const [, , input, output, label = path.basename(input)] = process.argv;
+const [, , input, output, label = path.basename(input), orthoArg] = process.argv;
+// optional 4th arg "z0,z1,y0,y1": orthographic side view of that window with a 0.5 m grid (camera on +x, +z to the left)
+const ortho = orthoArg ? orthoArg.split(',').map(Number) : null;
 if (!input || !output) {
   console.error('usage: turntable.mjs <in.glb> <out.png> [label]');
   process.exit(1);
@@ -31,7 +33,12 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 page.on('console', (m) => m.type() === 'error' && console.error('[page]', m.text()));
 await page.setContent(html);
 const b64 = fs.readFileSync(input).toString('base64');
-const info = await page.evaluate(async (b) => window.renderTurntable(b), b64);
+const info = await page.evaluate(async ([b, o]) => window.renderTurntable(b, o ? { ortho: o } : {}), [b64, ortho]);
+if (ortho) {
+  await page.evaluate((t) => { document.getElementById('label').textContent = t; }, `${label} | ortho z ${ortho[0]}..${ortho[1]} y ${ortho[2]}..${ortho[3]} | grid 0.5 m`);
+  await page.setViewportSize({ width: info.width, height: info.height });
+  await page.screenshot({ path: output }); await browser.close(); console.log(JSON.stringify(info)); process.exit(0);
+}
 const [sx, sy, sz] = info.size.map((v) => v.toFixed(2));
 await page.evaluate((t) => { document.getElementById('label').textContent = t; },
   `${label}  |  W ${sx} m  H ${sy} m  L ${sz} m  |  ${Math.round(info.triangles).toLocaleString()} tris`);

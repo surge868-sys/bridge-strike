@@ -25,7 +25,9 @@ import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer
 import sharp from 'sharp';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const manifestPath = path.join(root, 'assets/models/manifest.json');
+// MANIFEST / OUT_DIR overrides let probe runs write elsewhere without touching the real outputs.
+const manifestPath = process.env.MANIFEST ? path.resolve(process.env.MANIFEST) : path.join(root, 'assets/models/manifest.json');
+const outDir = process.env.OUT_DIR ? path.resolve(process.env.OUT_DIR) : path.join(root, 'public/models');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const only = process.argv.slice(2);
 
@@ -40,6 +42,30 @@ function mat4(yawDeg, scale, tx = 0, ty = 0, tz = 0) {
   const a = (yawDeg * Math.PI) / 180, c = Math.cos(a) * scale, s = Math.sin(a) * scale;
   // column-major: rotation about +y, then uniform scale, then translation
   return [c, 0, -s, 0, 0, scale, 0, 0, s, 0, c, 0, tx, ty, tz, 1];
+}
+
+// Yaw (degrees, about +y, same sense as mat4) that rotates the dominant horizontal
+// axis of the vertex cloud onto z.
+function principalYaw(doc) {
+  let n = 0, mx = 0, mz = 0, cxx = 0, czz = 0, cxz = 0;
+  const v = [0, 0, 0];
+  for (const { prim } of primitives(doc)) {
+    const pos = prim.getAttribute('POSITION');
+    for (let i = 0; i < pos.getCount(); i++) { pos.getElement(i, v); n++; mx += v[0]; mz += v[2]; }
+  }
+  mx /= n; mz /= n;
+  for (const { prim } of primitives(doc)) {
+    const pos = prim.getAttribute('POSITION');
+    for (let i = 0; i < pos.getCount(); i++) {
+      pos.getElement(i, v);
+      const dx = v[0] - mx, dz = v[2] - mz;
+      cxx += dx * dx; czz += dz * dz; cxz += dx * dz;
+    }
+  }
+  // angle of the major axis measured from +x towards +z
+  const theta = 0.5 * Math.atan2(2 * cxz, cxx - czz);
+  // mat4 rotates (x,z) -> (x cos + z sin, -x sin + z cos); map the major axis to +z
+  return ((Math.PI / 2 - theta) * 180) / Math.PI * -1;
 }
 
 function primitives(doc) {
@@ -82,7 +108,7 @@ function inBox(p, b) {
 
 // Re-partition triangles by centroid: dropped (inside a wheel or a cut box),
 // moved into a named part, or kept in the body.
-function partition(doc, { wheels = [], cuts = [], parts = {} }) {
+function partition(doc, { wheels = [], cuts = [], parts = {}, bodyName = 'body' }) {
   const scene = doc.getRoot().listScenes()[0];
   const partEntries = Object.entries(parts);
   const stats = { removed: 0, parts: {} };
@@ -111,7 +137,7 @@ function partition(doc, { wheels = [], cuts = [], parts = {} }) {
       scene.addChild(doc.createNode(name).setMesh(m2));
       stats.parts[name] = (stats.parts[name] ?? 0) + arr.length / 3;
     }
-    mesh.setName(mesh.getName() || 'body');
+    mesh.setName(bodyName);
   }
   return stats;
 }
@@ -129,6 +155,13 @@ async function importAsset(name, cfg) {
     if (mesh) transformMesh(mesh, node.getWorldMatrix());
     node.setTranslation([0, 0, 0]).setRotation([0, 0, 0, 1]).setScale([1, 1, 1]);
   }
+  // Some generations come out rotated about y; autoAlign turns the long (principal)
+  // horizontal axis onto z first, then yaw picks which end faces -z.
+  let autoYaw = 0;
+  if (cfg.autoAlign) {
+    autoYaw = principalYaw(doc);
+    for (const mesh of doc.getRoot().listMeshes()) transformMesh(mesh, mat4(autoYaw, 1));
+  }
   for (const mesh of doc.getRoot().listMeshes()) transformMesh(mesh, mat4(cfg.yaw ?? 0, 1));
   // Generators sometimes get proportions wrong (e.g. 10% too wide); correct per axis.
   if (cfg.axisScale) {
@@ -144,11 +177,18 @@ async function importAsset(name, cfg) {
   for (const mesh of doc.getRoot().listMeshes()) {
     transformMesh(mesh, mat4(0, scale, -cx * scale, -bb.min[1] * scale, -cz * scale));
   }
+  // origin "center" (wheels): pivot at the bounding-box centre instead of on the ground
+  if (cfg.origin === 'center') {
+    const hy = (bb.size[1] * scale) / 2;
+    for (const mesh of doc.getRoot().listMeshes()) transformMesh(mesh, mat4(0, 1, 0, -hy, 0));
+  }
   bb = bounds(doc);
 
   // 4+5. wheels and parts
   const wheels = (cfg.wheels ?? []).map((w) => ({ width: 0.7, ...w }));
-  const split = partition(doc, { wheels, cuts: cfg.cuts ?? [], parts: cfg.parts ?? {} });
+  const bodyName = cfg.bodyName ?? 'body';
+  const split = partition(doc, { wheels, cuts: cfg.cuts ?? [], parts: cfg.parts ?? {}, bodyName });
+  for (const node of doc.getRoot().listNodes()) if (node.getMesh()?.getName() === bodyName) node.setName(bodyName);
   const scene = doc.getRoot().listScenes()[0];
   for (const w of wheels) {
     scene.addChild(doc.createNode(w.name).setTranslation([w.x, w.y, w.z]).setExtras({ radius: w.r, width: w.width }));
@@ -160,7 +200,7 @@ async function importAsset(name, cfg) {
   const trisMid = triangleCount(doc);
   const budget = cfg.triangles ?? 60000;
   if (trisMid > budget) {
-    await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: budget / trisMid, error: 0.002, lockBorder: false }));
+    await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: budget / trisMid, error: cfg.simplifyError ?? 0.002, lockBorder: false }));
   }
   await doc.transform(
     textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [cfg.texture ?? 2048, cfg.texture ?? 2048], quality: 85 }),
@@ -171,7 +211,7 @@ async function importAsset(name, cfg) {
   const trisOut = triangleCount(doc);
   await doc.transform(meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
 
-  const out = path.join(root, 'public/models', `${name}.glb`);
+  const out = path.join(outDir, `${name}.glb`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   await io.write(out, doc);
 
@@ -179,7 +219,7 @@ async function importAsset(name, cfg) {
     name, src: cfg.src, out: path.relative(root, out),
     bytes: fs.statSync(out).size,
     trianglesIn: trisIn, trianglesOut: trisOut, budget,
-    scale: +scale.toFixed(4),
+    scale: +scale.toFixed(4), autoYaw: +autoYaw.toFixed(1),
     size: final.size.map((v) => +v.toFixed(3)),
     min: final.min.map((v) => +v.toFixed(3)),
     max: final.max.map((v) => +v.toFixed(3)),
@@ -194,7 +234,7 @@ async function importAsset(name, cfg) {
     const front = wheels.filter((w) => /^wheel_F/.test(w.name)), rear = wheels.filter((w) => !/^wheel_F/.test(w.name));
     const actual = k === 'wheelbase'
       ? (front.length && rear.length ? mean(rear) - mean(front) : null)
-      : k === 'y' ? report.max[1] // height above the ground, even when the tires were stripped
+      : k === 'y' && cfg.origin !== 'center' ? report.max[1] // height above the ground, even when the tires were stripped
       : report.size[AXES[k]] ?? null;
     const tol = expected * 0.08;
     report.checks[k] = { expected, actual: actual == null ? null : +actual.toFixed(3), ok: actual != null && Math.abs(actual - expected) <= tol };
@@ -208,7 +248,7 @@ for (const [name, cfg] of Object.entries(manifest.assets)) {
   const r = await importAsset(name, cfg);
   if (r) { reports.push(r); console.log(`${name}: ${r.trianglesOut} tris, ${(r.bytes / 1024).toFixed(0)} KB, size ${r.size.join(' x ')} m`); }
 }
-const reportPath = path.join(root, 'assets/models/bounds-report.json');
+const reportPath = process.env.OUT_DIR ? path.join(outDir, 'bounds-report.json') : path.join(root, 'assets/models/bounds-report.json');
 const prev = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, 'utf8')) : {};
 for (const r of reports) prev[r.name] = r;
 fs.writeFileSync(reportPath, JSON.stringify(prev, null, 2) + '\n');

@@ -12,6 +12,7 @@ function b64ToBytes(b64) {
 }
 
 window.renderTurntable = async (b64, opts = {}) => {
+  if (opts.ortho) return renderOrtho(b64, opts);
   const W = opts.width ?? 1600, H = opts.height ?? 1000;
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
@@ -83,3 +84,34 @@ window.renderTurntable = async (b64, opts = {}) => {
   model.traverse((o) => { if (o.isMesh) tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
   return { size: size.toArray(), min: box.min.toArray(), max: box.max.toArray(), triangles: tris };
 };
+
+// Orthographic side view (camera on -x) of a z/y window with a 0.5 m grid, for
+// reading hub positions off a model. opts.ortho = [z0, z1, y0, y1].
+async function renderOrtho(b64, opts) {
+  const [z0, z1, y0, y1] = opts.ortho;
+  const W = opts.width ?? 1600, H = Math.round(W * (y1 - y0) / (z1 - z0));
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xdddddd);
+  scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+  const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(-5, 5, 0); scene.add(key);
+  const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+  const bytes = b64ToBytes(b64);
+  const gltf = await new Promise((res, rej) => loader.parse(bytes.buffer, '', res, rej));
+  scene.add(gltf.scene);
+  const lines = [];
+  for (let z = Math.ceil(z0 * 2) / 2; z <= z1; z += 0.5) lines.push(new THREE.Vector3(5, y0, z), new THREE.Vector3(5, y1, z));
+  for (let y = Math.ceil(y0 * 2) / 2; y <= y1; y += 0.5) lines.push(new THREE.Vector3(5, y, z0), new THREE.Vector3(5, y, z1));
+  const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines), new THREE.LineBasicMaterial({ color: 0xff0044 }));
+  grid.renderOrder = 10; grid.material.depthTest = false;
+  scene.add(grid);
+  // camera on -x looking toward +x: screen right = -z... flip so +z is to the right
+  const cam = new THREE.OrthographicCamera(-(z1 - z0) / 2, (z1 - z0) / 2, (y1 - y0) / 2, -(y1 - y0) / 2, 0.1, 100);
+  cam.position.set(20, (y0 + y1) / 2, (z0 + z1) / 2);
+  cam.lookAt(0, (y0 + y1) / 2, (z0 + z1) / 2);
+  renderer.render(scene, cam);
+  return { ortho: opts.ortho, width: W, height: H };
+}

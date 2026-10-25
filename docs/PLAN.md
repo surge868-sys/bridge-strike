@@ -107,3 +107,14 @@ Playwright with Chromium at `/opt/pw-browsers/chromium` (swiftshader flags). Hoo
 As in your brief: M0 assets → M1 drivable → M2 loop → M3 look → M4 feel and comedy → M5 social. I stop after each one, commit and push, and publish `dist/sim.html` as an artifact.
 
 Because downloads are blocked, M0 can only do the concept sheets until the hosts are allowlisted. If you want, I can start M1 with procedural stand-in models while you look at concepts. That changes the milestone order, so I'm asking rather than assuming.
+
+## M0 outcome (Oct 25)
+
+- Generator: concept sheets and 3D views on fal `nano-banana-pro`; 3D on Hunyuan3D 3.1 Pro (beat Rodin 2.5).
+- Models in `public/models/` (6.3 MB total, all dimension checks pass, see `assets/models/bounds-report.json`):
+  tractor 60k tris (wheelbase 6.40 m), trailer gooseneck + deck 40k, wheel 6.8k (instanced),
+  loads 30–40k each, scaled so each load's top lands on its gameplay height on a 0.71 m deck.
+- Changes from the plan: the trailer's rear bogie, fenders, tail and hydraulic rams are procedural
+  (the generated running gear was asymmetric, and the rams must animate). Excavator (load 2) and
+  loader (load 3) were re-posed lower because the first versions stood 6.3–6.5 m at real scale.
+- Overpass kit: procedural geometry with generated concrete and rail-steel tile textures.

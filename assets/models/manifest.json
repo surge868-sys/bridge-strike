@@ -72,6 +72,204 @@
         "wheelbase": 6.4
       },
       "notes": "x includes west-coast mirrors (2.59 m body + mirrors). Hunyuan output was ~11% too wide, corrected with axisScale. Wheel hubs measured with scripts/assets/probe-axles.mjs (tire r ~0.56 m); strip radius 0.59 m catches the tread."
+    },
+    "trailer": {
+      "src": "assets/raw/models/trailer-hunyuan.glb",
+      "generator": "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d (request 01a17138-796a-73a0-840a-dd8ad0e5480a)",
+      "autoAlign": true,
+      "yaw": 0,
+      "measure": {
+        "axis": "z",
+        "metres": 15.5
+      },
+      "triangles": 40000,
+      "texture": 1024,
+      "axisScale": [
+        0.55,
+        0.68,
+        1
+      ],
+      "bodyName": "deck",
+      "notes": "Generated gooseneck + well deck only. Raw mesh was ~1.8x too wide and ~1.45x too tall (foreshortened source view); axisScale fixes both (deck top ~0.71 m, gooseneck ~1.6 m). Everything behind z=2.62 (bogie, running gear, ramps, tail) is cut: the generated bogie was asymmetric with 4 wheels on one side. rig.ts builds the bogie frame, fenders, tail lights and hydraulic rams procedurally; wheel pivots below are for 3 axles at 1.37 m spacing. Parts: gooseneck stays fixed, deck drops 0.30 m.",
+      "cuts": [
+        {
+          "min": [
+            -2,
+            -1,
+            2.62
+          ],
+          "max": [
+            2,
+            4,
+            8.0
+          ]
+        }
+      ],
+      "wheels": [
+        {
+          "name": "wheel_A1L",
+          "x": -0.99,
+          "y": 0.53,
+          "z": 3.46,
+          "r": 0.53,
+          "width": 0.72
+        },
+        {
+          "name": "wheel_A1R",
+          "x": 0.99,
+          "y": 0.53,
+          "z": 3.46,
+          "r": 0.53,
+          "width": 0.72
+        },
+        {
+          "name": "wheel_A2L",
+          "x": -0.99,
+          "y": 0.53,
+          "z": 4.83,
+          "r": 0.53,
+          "width": 0.72
+        },
+        {
+          "name": "wheel_A2R",
+          "x": 0.99,
+          "y": 0.53,
+          "z": 4.83,
+          "r": 0.53,
+          "width": 0.72
+        },
+        {
+          "name": "wheel_A3L",
+          "x": -0.99,
+          "y": 0.53,
+          "z": 6.2,
+          "r": 0.53,
+          "width": 0.72
+        },
+        {
+          "name": "wheel_A3R",
+          "x": 0.99,
+          "y": 0.53,
+          "z": 6.2,
+          "r": 0.53,
+          "width": 0.72
+        }
+      ],
+      "expect": {
+        "x": 2.6,
+        "y": 1.65,
+        "z": 10.5
+      },
+      "parts": {
+        "gooseneck": {
+          "min": [
+            -2,
+            -1,
+            -8.0
+          ],
+          "max": [
+            2,
+            4,
+            -4.1
+          ]
+        }
+      }
+    },
+    "wheel": {
+      "src": "assets/raw/models/wheel-hunyuan.glb",
+      "generator": "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d (request 01a17138-7972-7633-9100-c98b0980a6e5)",
+      "yaw": 0,
+      "origin": "center",
+      "measure": {
+        "axis": "y",
+        "metres": 1.054
+      },
+      "triangles": 2500,
+      "texture": 512,
+      "expect": {
+        "y": 1.054,
+        "x": 0.31
+      },
+      "notes": "11R22.5 tire on a 22.5 in polished wheel, axle along x, pivot at the hub. Instanced for every wheel; duals are two instances. Scaled to r 0.50 for the trailer.",
+      "simplifyError": 0.05
+    },
+    "load1-trackhoe": {
+      "src": "assets/raw/models/load1-trackhoe-hunyuan.glb",
+      "generator": "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d (request 01a17138-7971-7f23-8908-88dc08fe736b)",
+      "yaw": 180,
+      "measure": {
+        "axis": "y",
+        "metres": 4.04
+      },
+      "triangles": 30000,
+      "texture": 1024,
+      "expect": {
+        "x": 2.9,
+        "y": 4.04
+      },
+      "notes": "Mid-size (20 t class) tracked excavator, track width ~2.9 m. Load 1 tops out at 4.75 m on a 0.71 m deck, so ~4.04 m machine height."
+    },
+    "load2-excavator": {
+      "src": "assets/raw/models/load2-excavator-hunyuan.glb",
+      "generator": "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d (request 01a17143-b934-79c3-b771-f636a2332db4)",
+      "yaw": 180,
+      "measure": {
+        "axis": "y",
+        "metres": 4.19
+      },
+      "triangles": 30000,
+      "texture": 1024,
+      "expect": {
+        "x": 3.15,
+        "y": 4.19
+      },
+      "notes": "30 t class excavator, boom raised so the elbow is the high point. Load 2 tops out at 4.90 m on a 0.71 m deck. First generation (boom near-vertical) stood 6.5 m at real scale and was replaced."
+    },
+    "load3-loader": {
+      "src": "assets/raw/models/load3-loader-hunyuan.glb",
+      "generator": "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d (request 01a17143-b933-7a61-8c7f-91ca8d114593)",
+      "yaw": 180,
+      "measure": {
+        "axis": "y",
+        "metres": 4.34
+      },
+      "triangles": 30000,
+      "texture": 1024,
+      "expect": {
+        "x": 2.6,
+        "y": 4.34
+      },
+      "notes": "Mid-size wheel loader with the bucket in travel position. Load 3 tops out at 5.05 m on a 0.71 m deck. First generation (bucket high) stood 6.3 m and was replaced."
+    },
+    "load4-grainbin": {
+      "src": "assets/raw/models/load4-grainbin-hunyuan.glb",
+      "generator": "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d (request 01a17138-7970-71f0-946e-ca3e537cbf91)",
+      "yaw": 0,
+      "measure": {
+        "axis": "y",
+        "metres": 4.49
+      },
+      "triangles": 40000,
+      "texture": 1024,
+      "expect": {
+        "y": 4.49
+      },
+      "notes": "Upright corrugated bin; load 4 tops out at 5.20 m on a 0.71 m deck. Diameter follows from proportions (~3.9 m, overhangs the deck)."
+    },
+    "load5-hoppers": {
+      "src": "assets/raw/models/load5-hoppers-hunyuan.glb",
+      "generator": "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d (request 01a17138-7977-7df3-aa63-339014d1583b)",
+      "yaw": 0,
+      "measure": {
+        "axis": "y",
+        "metres": 4.64
+      },
+      "triangles": 30000,
+      "texture": 1024,
+      "expect": {
+        "y": 4.64
+      },
+      "notes": "Twin hopper-bottom bins on a skid, one behind the other along z. Load 5 tops out at 5.35 m on a 0.71 m deck."
     }
   }
 }
