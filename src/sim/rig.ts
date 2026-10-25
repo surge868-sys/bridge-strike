@@ -40,11 +40,11 @@ const KINGPIN = { x: 0, y: 1.3, z: -7.0 }; // trailer space
 export const TUNE = {
   tractor: {
     rest: 0.32, travel: 0.22, stiffness: 46, compression: 4.2, relaxation: 5.0,
-    maxForce: 1e7, frictionSlip: 1.05, sideStiffness: 1.0, antiRoll: 6e5,
+    maxForce: 1e7, frictionSlip: 1.05, sideStiffness: 1.0, antiRoll: 60, antiRollDamping: 1.5,
   } as SuspensionTune,
   trailer: {
     rest: 0.32, travel: 0.22, stiffness: 15, compression: 2.2, relaxation: 2.8,
-    maxForce: 1e7, frictionSlip: 1.05, sideStiffness: 1.0, antiRoll: 1.6e6,
+    maxForce: 1e7, frictionSlip: 1.05, sideStiffness: 1.0, antiRoll: 50, antiRollDamping: 1.5,
   } as SuspensionTune,
   driveForce: 9000, // N per drive wheel ray (4 rays)
   reverseForce: 5000,

@@ -118,3 +118,9 @@ Because downloads are blocked, M0 can only do the concept sheets until the hosts
   (the generated running gear was asymmetric, and the rams must animate). Excavator (load 2) and
   loader (load 3) were re-posed lower because the first versions stood 6.3–6.5 m at real scale.
 - Overpass kit: procedural geometry with generated concrete and rail-steel tile textures.
+
+## M2 outcome (Oct 25)
+
+- Route: six overpasses ~230 m apart (Hwy 16 at Circle Dr, 108th St, CPKC rail, McKercher Dr, 51st St, CN rail at Idylwyld) with the approved per-lane clearances, then delivery at the Saskatoon city limits. Rail crossings are steel through-girder spans.
+- Dispatch sheet (date, heights, briefing, unlocked loads), LOAD DELIVERED card with run stats, strike card naming the bridge (rail bridges get their own bill), ROLLED IT! card. Unlocks persist per viewer in localStorage.
+- Changes found in testing: anti-roll bars now scale with body mass and are damped (a lightly loaded trailer rocked itself into strikes); the grain bin is slimmed to 3.2 m so every load stays inside one 3.7 m lane.

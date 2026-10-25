@@ -11,48 +11,50 @@ const check = (name, ok, detail) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  ${detail}`);
 };
 
-/** Drive a bot until the rig is past the overpass or something ends the run. */
-async function drive(page, { lane, lowerWithin = 0, speedKmh = 60, untilZ = -60, maxSecs = 90 }) {
-  return page.evaluate(async ({ lane, lowerWithin, speedKmh, untilZ, maxSecs }) => {
-    const d = window.__simDebug;
-    const laneX = d.overpass.spans.find((s) => s.lane === lane);
-    const target = (laneX.min + laneX.max) / 2;
+/**
+ * Plate-reading bot. For each overpass ahead it reads the posted plates, picks the
+ * lane with the most headroom that the load fits (lowered only if it must), changes
+ * lanes in the gap between bridges, and holds LOWER from 120 m out until it is past.
+ * `force` overrides the plan (negative tests): { lane, lower }.
+ */
+async function routeBot(page, { speedKmh = 65, maxSecs = 200, force = null } = {}) {
+  return page.evaluate(async ({ speedKmh, maxSecs, force }) => {
+    const margin = 0.02;
     let s = window.__sim();
+    const plans = [];
     let t = 0;
     while (t < maxSecs) {
+      const op = s.next;
+      let plan = null;
+      if (op) {
+        if (force) plan = force;
+        else {
+          const lanes = [...op.lanes].sort((a, b) => b.clearance - a.clearance);
+          const fit = lanes.find((l) => s.loadTarget + margin < l.clearance);
+          const low = lanes.find((l) => s.loadTarget - 0.3 + margin < l.clearance);
+          plan = fit ? { lane: fit.lane, lower: false } : low ? { lane: low.lane, lower: true } : { lane: 'RIGHT', lower: false, impossible: true };
+        }
+        if (!plans.length || plans[plans.length - 1].id !== op.id) plans.push({ id: op.id, ...plan });
+      }
+      const laneDef = op ? op.lanes.find((l) => l.lane === (plan?.lane ?? 'RIGHT')) : null;
+      const target = laneDef ? (laneDef.min + laneDef.max) / 2 : 13.55;
+      const dist = op ? s.tractor.z - 4.4 - (op.z + op.halfZ) : Infinity;
       const steer = Math.max(-1, Math.min(1, 0.22 * (target - s.tractor.x) - 2.2 * s.heading));
-      const throttle = s.speedKmh < speedKmh ? 1 : 0;
-      const dist = s.tractor.z - 4.4 - (d.overpass.def.z + 6);
-      window.__simInput({ throttle, brake: 0, steer, lower: lowerWithin > 0 && dist < lowerWithin, jake: false });
+      window.__simInput({ throttle: s.speedKmh < speedKmh ? 1 : 0, brake: 0, steer, lower: !!(plan?.lower && dist < 120), jake: false });
       s = window.__simStep(0.1);
       t += 0.1;
-      if (s.phase !== 'drive' || s.trailer.z + 7.8 < untilZ) break;
+      if (s.phase !== 'drive') break;
     }
     window.__simInput(null);
-    return { ...s, t };
-  }, { lane, lowerWithin, speedKmh, untilZ, maxSecs });
-}
-
-/** Plate-reading bot: look at the posted clearances, pick a lane, lower only if it has to. */
-async function plateBot(page) {
-  const plan = await page.evaluate(() => {
-    const d = window.__simDebug;
-    const load = window.__sim().loadTarget;
-    const lanes = d.overpass.spans.filter((s) => s.lane);
-    const margin = 0.02;
-    const fits = lanes.filter((l) => load + margin < l.clearance).sort((a, b) => b.clearance - a.clearance);
-    if (fits.length) return { lane: fits[0].lane, lower: false };
-    const low = lanes.filter((l) => load - 0.3 + margin < l.clearance).sort((a, b) => b.clearance - a.clearance);
-    return low.length ? { lane: low[0].lane, lower: true } : null;
-  });
-  return { plan, end: plan ? await drive(page, { lane: plan.lane, lowerWithin: plan.lower ? 150 : 0 }) : null };
+    return { ...s, t, plans };
+  }, { speedKmh, maxSecs, force });
 }
 
 async function shot(page, name, secs = 0.5) {
-  await page.evaluate(() => document.querySelector('.bs-start')?.remove());
   await page.evaluate((s) => { for (let i = 0; i < 6; i++) window.__simFrame(s / 6); }, secs);
   const file = path.join(SHOTS, `${name}.png`);
   await page.screenshot({ path: file, timeout: 120000 });
+  console.log('shot', file);
   return file;
 }
 
@@ -63,31 +65,39 @@ try {
     const { page, ctx, errors } = await openSim(browser, DESKTOP);
     let s = await page.evaluate(() => window.__simStep(2));
     check('settles on all wheels', s.tractor.contacts === 6 && s.trailer.contacts === 6, `contacts ${s.tractor.contacts}/${s.trailer.contacts}`);
-    check('load calibrated to posted height', s.calibrated && Math.abs(s.loadTop - s.loadTarget) < 0.01, `top ${s.loadTop.toFixed(3)} m vs ${s.loadTarget} (calibration moved it ${(s.calibrationError * 100).toFixed(1)} cm)`);
     const z0 = s.tractor.z;
-    s = await page.evaluate(() => window.__simStep(5));
-    check('parked rig holds still', Math.abs(s.tractor.z - z0) < 0.02, `drift ${(s.tractor.z - z0).toFixed(3)} m in 5 s`);
+    s = await page.evaluate(() => window.__simStep(3));
+    check('parked rig holds still', Math.abs(s.tractor.z - z0) < 0.02, `drift ${(s.tractor.z - z0).toFixed(3)} m in 3 s`);
 
-    const bot = await plateBot(page);
-    check('plate bot: delivers through the overpass', bot.end && bot.end.cleared && !bot.end.struck, `plan ${JSON.stringify(bot.plan)}, phase ${bot.end?.phase}, cleared ${bot.end?.cleared}, ${bot.end?.t.toFixed(1)} s`);
+    for (let i = 0; i < 5; i++) {
+      await page.evaluate((i) => window.__simDebug.reset({ load: i }), i);
+      s = await page.evaluate(() => window.__simStep(2));
+      const cal = s.calibrated && Math.abs(s.loadTop - s.loadTarget) < 0.01;
+      const end = await routeBot(page);
+      const lowered = end.plans.filter((p) => p.lower).map((p) => p.id);
+      check(`plate bot delivers load ${i + 1} (${end.load}, ${end.loadTarget} m) through all six`,
+        cal && end.delivered && end.cleared === 6 && !end.struck && !end.plans.some((p) => p.impossible),
+        `calibrated top ${s.loadTop.toFixed(3)} m, phase ${end.phase}, cleared ${end.cleared}/6, ${end.t.toFixed(0)} s, lanes ${end.plans.map((p) => p.lane[0] + (p.lower ? 'v' : '')).join(' ')}, lowered at [${lowered.join(', ')}]`);
+    }
 
-    await page.evaluate(() => window.__simDebug.reset());
+    await page.evaluate(() => window.__simDebug.reset({ load: 0 }));
     await page.evaluate(() => window.__simStep(2));
-    let end = await drive(page, { lane: 'LEFT', lowerWithin: 150 });
-    check('low lane + hold-to-lower clears 4.70 m', end.cleared && !end.struck, `phase ${end.phase}, lower ${end.lower.toFixed(2)}, cleared ${end.cleared}`);
+    let end = await routeBot(page, { force: { lane: 'LEFT', lower: false } });
+    check('negative bot: load 1 in the 4.70 m lane without lowering strikes Hwy 16', end.phase === 'strike' && end.struck?.at === 'hwy16-circle' && end.struck?.by === 'load', `phase ${end.phase}, struck ${JSON.stringify(end.struck)}`);
 
-    await page.evaluate(() => window.__simDebug.reset());
+    await page.evaluate(() => window.__simDebug.reset({ load: 3, z: 400 }));
     await page.evaluate(() => window.__simStep(2));
-    end = await drive(page, { lane: 'LEFT' });
-    check('negative bot: low lane without lowering strikes', end.phase === 'strike' && end.struck?.by === 'load', `phase ${end.phase}, struck ${JSON.stringify(end.struck)}`);
+    end = await routeBot(page, { force: { lane: 'RIGHT', lower: false } });
+    check('negative bot: grain bin (5.20 m) in the 5.00 m lane strikes the CPKC rail bridge', end.phase === 'strike' && end.struck?.at === 'cpkc', `phase ${end.phase}, struck ${JSON.stringify(end.struck)}`);
 
     // rollover: hard in-lane swerves at speed
-    await page.evaluate(() => window.__simDebug.reset({ z: 900 }));
+    // Load 1 in the right lane fits the first overpass, so nothing else ends the run.
+    await page.evaluate(() => window.__simDebug.reset({ load: 0, z: 930 }));
     s = await page.evaluate(() => {
       window.__simStep(2);
       let st = window.__sim();
       window.__simInput({ throttle: 1, steer: 0 });
-      while (st.speedKmh < 85) st = window.__simStep(0.5);
+      for (let k = 0; k < 120 && st.speedKmh < 85 && st.phase === 'drive'; k++) st = window.__simStep(0.5);
       let minUp = 1;
       for (const [steer, secs] of [[1, 1.0], [-1, 1.4], [1, 1.4], [-1, 1.0], [0, 3]]) {
         window.__simInput({ throttle: 1, steer });
@@ -96,60 +106,67 @@ try {
       window.__simInput(null);
       return { ...st, minUp };
     });
-    check('rollover: survives a hard swerve at 85 km/h', !s.rolled && s.minUp > 0.8, `min up ${s.minUp.toFixed(3)} (cos of max lean ${(Math.acos(Math.min(1, s.minUp)) * 57.3).toFixed(1)} deg), phase ${s.phase}`);
+    check('rollover: survives a hard swerve at 85 km/h', !s.rolled && s.minUp > 0.8, `min up ${s.minUp.toFixed(3)} (max lean ${(Math.acos(Math.min(1, s.minUp)) * 57.3).toFixed(1)} deg), phase ${s.phase}`);
     check('no page errors (physics run)', errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();
   }
 
-  // --- real keyboard: the start overlay has to be clicked before keys reach the game
+  // --- dispatch sheet + real keyboard: rolling out focuses the framed game
   {
-    const { page, ctx, errors } = await openSim(browser, DESKTOP);
+    const { page, ctx, errors } = await openSim(browser, DESKTOP, '', { keepDispatch: true });
     await page.evaluate(() => window.__simStep(1));
-    const overlay = await page.isVisible('.bs-start');
-    await page.mouse.click(640, 400);
-    const gone = !(await page.isVisible('.bs-start'));
+    const visible = await page.isVisible('.bs-dispatch');
+    await shot(page, 'desktop-dispatch');
+    await page.click('.bs-dispatch .roll');
+    let s = await page.evaluate(() => window.__sim());
+    const rolled = s.phase === 'drive' && !(await page.isVisible('.bs-dispatch'));
     await page.keyboard.down('KeyW');
-    let s = await page.evaluate(() => window.__simStep(3));
+    s = await page.evaluate(() => window.__simStep(3));
     await page.keyboard.up('KeyW');
     await page.keyboard.down('KeyD');
     const x0 = s.tractor.x;
     s = await page.evaluate(() => window.__simStep(1.5));
     await page.keyboard.up('KeyD');
-    check('keyboard: click to drive, then W and D drive the rig', overlay && gone && s.speedKmh > 5 && s.tractor.x > x0, `overlay ${overlay}->${!gone}, speed ${s.speedKmh.toFixed(1)} km/h, D moved x +${(s.tractor.x - x0).toFixed(2)}`);
-    check('no page errors (keyboard)', errors.length === 0, errors.slice(0, 3).join(' | '));
+    check('dispatch: ROLL OUT starts the run; W and D drive the rig', visible && rolled && s.speedKmh > 5 && s.tractor.x > x0, `dispatch shown ${visible}, rolled ${rolled}, speed ${s.speedKmh.toFixed(1)} km/h, D moved x +${(s.tractor.x - x0).toFixed(2)}`);
+    check('no page errors (dispatch/keyboard)', errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();
   }
 
-  // --- screenshots: desktop chase + drone, approach, strike card
+  // --- screenshots: approach, rail bridge, drone, strike and delivery cards
   {
     const { page, ctx, errors } = await openSim(browser, DESKTOP);
     await page.evaluate(() => window.__simStep(2));
-    console.log('shot', await shot(page, 'desktop-chase-start'));
-    await page.evaluate(() => window.__simDebug.reset({ z: 200, x: 9.85 }));
+    await shot(page, 'desktop-chase-start');
+    await page.evaluate(() => window.__simDebug.reset({ z: 300, x: 13.55 }));
     await page.evaluate(() => window.__simStep(2));
-    console.log('shot', await shot(page, 'desktop-chase-approach'));
+    await shot(page, 'desktop-chase-rail-approach');
+    await page.evaluate(() => window.__simDebug.reset({ z: 262, x: 9.85 }));
+    await page.evaluate(() => window.__simStep(2));
+    await shot(page, 'desktop-chase-rail-close');
     await page.evaluate(() => window.__simDebug.setCam('drone'));
-    console.log('shot', await shot(page, 'desktop-drone-approach', 1));
+    await shot(page, 'desktop-drone-rail', 1);
     await page.evaluate(() => window.__simDebug.setCam('chase'));
-    await page.evaluate(() => window.__simDebug.reset({ z: 40, x: 9.85 }));
+    await page.evaluate(() => window.__simDebug.reset({ load: 3, z: 400 }));
     await page.evaluate(() => window.__simStep(2));
-    console.log('shot', await shot(page, 'desktop-chase-bridge-close'));
-    await page.evaluate(() => window.__simDebug.reset({ z: 200, x: 9.85 }));
-    await page.evaluate(() => window.__simStep(2));
-    await drive(page, { lane: 'LEFT', untilZ: -60, maxSecs: 60 });
-    console.log('shot', await shot(page, 'desktop-strike-moment', 0.3));
+    await routeBot(page, { force: { lane: 'RIGHT', lower: false } });
     await page.evaluate(() => window.__simStep(2.5));
-    console.log('shot', await shot(page, 'desktop-strike-card'));
+    await shot(page, 'desktop-strike-rail-card');
+    await page.evaluate(() => window.__simDebug.reset({ load: 1, z: -400 }));
+    await page.evaluate(() => window.__simStep(2));
+    await routeBot(page);
+    await shot(page, 'desktop-delivered-card');
     check('no page errors (desktop render)', errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();
   }
 
   // --- phone metrics: 390 CSS px at 2.77 DPR, portrait and landscape
   for (const [name, opts] of [['phone-portrait', PHONE], ['phone-landscape', PHONE_LANDSCAPE]]) {
-    const { page, ctx, errors } = await openSim(browser, opts, '?touch');
-    await page.evaluate(() => window.__simDebug.reset({ z: 160 }));
+    const { page, ctx, errors } = await openSim(browser, opts, '?touch', { keepDispatch: true });
+    await page.evaluate(() => window.__simStep(1));
+    await shot(page, `${name}-dispatch`);
+    await page.evaluate(() => window.__simDebug.reset({ z: 520 }));
     await page.evaluate(() => window.__simStep(2));
-    console.log('shot', await shot(page, `${name}-chase`));
+    await shot(page, `${name}-chase`);
     if (name === 'phone-portrait') {
       // Drive with real multi-touch (CDP touch events): hold GAS, drag the wheel right
       // with a second finger, then hold LOWER LOAD.

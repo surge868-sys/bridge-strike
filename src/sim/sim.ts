@@ -2,8 +2,8 @@
 import * as THREE from 'three';
 import { initPhysics, createWorld, STEP, RAPIER } from './physics';
 import { loadModel, loadTexture, loadFonts } from './assets';
-import { buildWorld, LANES } from './world';
-import { buildOverpass, Overpass, OverpassDef } from './bridges';
+import { buildWorld, buildCityLimits, LANES } from './world';
+import { buildOverpass, Overpass, ROUTE, START_Z, DELIVERY_Z } from './bridges';
 import { Rig, RigControls, TUNE } from './rig';
 import { LOADS, LOWER_BY, LoadDef } from './loads';
 import { UI } from './ui';
@@ -13,12 +13,21 @@ export interface SimOptions {
   forceTouch?: boolean;
 }
 
-type Phase = 'drive' | 'strike' | 'rolled';
+type Phase = 'dispatch' | 'drive' | 'strike' | 'rolled' | 'delivered';
 type CamMode = 'chase' | 'drone';
 
-const START = { x: LANES[1].center, z: 760 };
-// M1 has one overpass: Highway 16 at Circle Drive, the city's lowest (posted 4.7 m).
-const OVERPASS: OverpassDef = { id: 'hwy16-circle', name: 'HWY 16 · CIRCLE DR', z: 0, kind: 'concrete', clearance: [4.7, 5.1] };
+const START = { x: LANES[1].center, z: START_Z };
+const TRAILER_REAR = 7.8; // trailer rear in trailer space (+z)
+const TRACTOR_FRONT = 4.4;
+const PROGRESS_KEY = 'bridge-strike:delivered';
+
+// Unlocks are a per-viewer convenience; storage can be missing or throw.
+const readProgress = () => {
+  try { return Math.max(0, Math.min(LOADS.length, parseInt(localStorage.getItem(PROGRESS_KEY) ?? '0', 10) || 0)); } catch { return 0; }
+};
+const saveProgress = (n: number) => {
+  try { localStorage.setItem(PROGRESS_KEY, String(n)); } catch { /* ignore */ }
+};
 
 declare global {
   interface Window {
@@ -49,13 +58,14 @@ export async function startSim(opts: SimOptions) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 1, 0.3, 4000);
 
-  const [, , tractor, trailer, wheel, concrete] = await Promise.all([
+  const [, , tractor, trailer, wheel, concrete, steel] = await Promise.all([
     initPhysics(),
     loadFonts(),
     loadModel('tractor'),
     loadModel('trailer'),
     loadModel('wheel'),
     loadTexture('textures/concrete.webp'),
+    loadTexture('textures/rail-steel.webp'),
   ]);
   const loadModels = new Map<string, THREE.Group>();
   const getLoad = async (def: LoadDef) => {
@@ -65,7 +75,8 @@ export async function startSim(opts: SimOptions) {
 
   const world = createWorld();
   const env = buildWorld(scene, world);
-  const overpass: Overpass = buildOverpass(scene, world, OVERPASS, concrete);
+  const overpasses: Overpass[] = ROUTE.map((def) => buildOverpass(scene, world, def, { concrete, steel }));
+  buildCityLimits(scene, DELIVERY_Z);
 
   // Image-based lighting from the sky so chrome and paint have something to reflect.
   {
@@ -84,30 +95,49 @@ export async function startSim(opts: SimOptions) {
 
   let loadIndex = 0;
   let rig!: Rig;
-  let phase: Phase = 'drive';
+  let phase: Phase = 'dispatch';
   let simTime = 0;
+  let driveTime = 0;
   let timeScale = 1;
   let slowmo = 0;
   let rolledFor = 0;
-  let cleared = false;
-  let struck: { by: string; speedKmh: number; time: number } | null = null;
+  let cleared = 0; // overpasses passed this run
+  let lowerings = 0;
+  let wasLowering = false;
+  let topSpeed = 0;
+  let struck: { by: string; at: string; speedKmh: number; time: number } | null = null;
   let camMode: CamMode = 'chase';
   let hookInput: Partial<RigControls> | null = null;
+  let snapCamera = true;
 
-  const reset = async (o: { load?: number; x?: number; z?: number } = {}) => {
+  const reset = async (o: { load?: number; x?: number; z?: number; phase?: Phase } = {}) => {
     if (o.load !== undefined) loadIndex = o.load;
     rig?.destroy();
     const def = LOADS[loadIndex];
     rig = new Rig(world, scene, { tractor: tractor.clone(), trailer: trailer.clone(), wheel, load: await getLoad(def) }, def, { x: o.x ?? START.x, z: o.z ?? START.z });
-    phase = 'drive';
-    simTime = 0;
+    phase = o.phase ?? 'drive';
+    simTime = driveTime = 0;
     timeScale = 1;
-    slowmo = 0;
-    rolledFor = 0;
-    cleared = false;
+    slowmo = rolledFor = lowerings = topSpeed = 0;
+    // Overpasses already behind the start point count as cleared (tests start mid-route).
+    cleared = overpasses.filter((op) => op.def.z - op.halfZ > (o.z ?? START.z) + TRAILER_REAR + 9.7).length;
+    wasLowering = false;
     struck = null;
     ui.hideCard();
     snapCamera = true;
+  };
+
+  const openDispatch = (selected = Math.min(readProgress(), LOADS.length - 1)) => {
+    ui.showDispatch({
+      loads: LOADS,
+      unlocked: Math.min(readProgress(), LOADS.length - 1),
+      selected,
+      onRoll: async (i) => {
+        if (i !== loadIndex || phase !== 'dispatch') await reset({ load: i, phase: 'dispatch' });
+        phase = 'drive';
+        focusGame();
+      },
+    });
   };
 
   // --- input
@@ -117,16 +147,16 @@ export async function startSim(opts: SimOptions) {
   container.addEventListener('pointerdown', focusGame);
   window.addEventListener('keydown', (e) => {
     keys.add(e.code);
-    ui.start();
+    if (phase === 'dispatch' && ['Enter', 'Space', 'KeyW', 'ArrowUp'].includes(e.code)) ui.rollOut();
     if (e.code === 'KeyC') camMode = camMode === 'chase' ? 'drone' : 'chase';
-    if (e.code === 'KeyR') void reset();
+    if (e.code === 'KeyR' && phase !== 'dispatch') void reset();
     if (e.code === 'Space') e.preventDefault();
   });
   window.addEventListener('keyup', (e) => keys.delete(e.code));
   window.addEventListener('blur', () => keys.clear());
   ui.onCam = () => (camMode = camMode === 'chase' ? 'drone' : 'chase');
   ui.onRestart = () => void reset();
-  ui.onStart = focusGame;
+  ui.onDispatch = (next) => { void reset({ load: next ?? loadIndex, phase: 'dispatch' }).then(() => openDispatch(next ?? loadIndex)); };
 
   const readControls = (dt: number): RigControls => {
     const left = keys.has('KeyA') || keys.has('ArrowLeft');
@@ -145,9 +175,13 @@ export async function startSim(opts: SimOptions) {
     return hookInput ? { ...c, ...hookInput } : c;
   };
 
+  const trailerRear = () => rig.trailerBody.translation().z + TRAILER_REAR;
+  const nextOverpass = () => overpasses.find((op) => trailerRear() > op.def.z - op.halfZ - 1);
+
   // --- fixed step
   const step = () => {
-    const c = phase === 'drive' ? readControls(STEP) : { throttle: 0, brake: 1, steer: 0, lower: rig.controls.lower, jake: false };
+    const parked = { throttle: 0, brake: phase === 'dispatch' ? 0 : 1, steer: 0, lower: false, jake: false };
+    const c = phase === 'drive' ? readControls(STEP) : { ...parked, lower: phase === 'dispatch' ? false : rig.controls.lower };
     rig.setControls(c);
     const speedBefore = Math.abs(rig.speed()) * 3.6;
     rig.preStep(STEP);
@@ -156,10 +190,11 @@ export async function startSim(opts: SimOptions) {
 
     queue.drainCollisionEvents((h1, h2, started) => {
       if (!started || phase !== 'drive') return;
-      const other = h1 === rig.envelope.handle ? h2 : h2 === rig.envelope.handle ? h1 : rig.rigColliders.has(h1) ? h2 : rig.rigColliders.has(h2) ? h1 : -1;
-      if (other < 0 || !overpass.strikeColliders.has(other)) return;
-      const by = h1 === rig.envelope.handle || h2 === rig.envelope.handle ? 'load' : 'rig';
-      struck = { by, speedKmh: speedBefore, time: simTime };
+      const env1 = h1 === rig.envelope.handle, env2 = h2 === rig.envelope.handle;
+      const other = env1 ? h2 : env2 ? h1 : rig.rigColliders.has(h1) ? h2 : rig.rigColliders.has(h2) ? h1 : -1;
+      const op = other < 0 ? undefined : overpasses.find((o) => o.strikeColliders.has(other));
+      if (!op) return;
+      struck = { by: env1 || env2 ? 'load' : 'rig', at: op.def.id, speedKmh: speedBefore, time: simTime };
       phase = 'strike';
       slowmo = 2.0;
     });
@@ -167,22 +202,30 @@ export async function startSim(opts: SimOptions) {
     if (!rig.calibrated && simTime > 1.5 && Math.abs(rig.speed()) < 0.3 && rig.lower === 0) rig.calibrate();
 
     if (phase === 'drive') {
+      driveTime += STEP;
+      topSpeed = Math.max(topSpeed, speedBefore);
+      if (c.lower && !wasLowering) lowerings++;
+      wasLowering = c.lower;
       const upT = rig.tractor.up().y, upR = rig.trailer.up().y;
       rolledFor = Math.min(upT, upR) < 0.3 ? rolledFor + STEP : 0;
       if (rolledFor > 0.5) {
         phase = 'rolled';
         ui.showRolled(rig.load);
       }
-      const rear = rig.trailerBody.translation().z + 7.8;
-      if (!cleared && rear < overpass.def.z - 7) {
-        cleared = true;
-        ui.showCleared('CLEARED!');
+      const rear = trailerRear();
+      while (cleared < overpasses.length && rear < overpasses[cleared].def.z - overpasses[cleared].halfZ - 1) {
+        ui.showCleared(`CLEARED · ${overpasses[cleared].def.name}`);
+        cleared++;
+      }
+      if (phase === 'drive' && cleared === overpasses.length && rear < DELIVERY_Z) {
+        phase = 'delivered';
+        if (loadIndex + 1 > readProgress()) saveProgress(loadIndex + 1);
+        ui.showDelivered({ load: rig.load, time: driveTime, lowerings, topSpeed, next: LOADS[loadIndex + 1], nextIndex: loadIndex + 1 });
       }
     }
   };
 
   // --- camera
-  let snapCamera = true;
   const camPos = new THREE.Vector3();
   const camLook = new THREE.Vector3();
   const updateCamera = (dt: number) => {
@@ -229,19 +272,22 @@ export async function startSim(opts: SimOptions) {
     rig.sync();
     updateCamera(dt);
     env.update(camera, rig.tractorGroup.position);
-    const frontZ = rig.tractorBody.translation().z - 4.4;
-    const dist = frontZ - (overpass.def.z + 6);
+    const frontZ = rig.tractorBody.translation().z - TRACTOR_FRONT;
+    const op = nextOverpass();
     ui.update({
       speedKmh: rig.speed() * 3.6,
       load: rig.load,
       loadTop: rig.load.top - rig.lower * LOWER_BY,
       lowered: rig.lower,
-      next: cleared || dist < -20 ? undefined : {
-        name: overpass.def.name,
-        distance: dist,
-        lanes: overpass.spans.filter((s) => s.lane).map((s) => ({ name: s.lane!, clearance: s.clearance })),
-        currentLane: currentLane(),
-      },
+      next: op
+        ? {
+            title: `OVERPASS ${overpasses.indexOf(op) + 1} OF ${overpasses.length}`,
+            name: op.def.name,
+            distance: frontZ - (op.def.z + op.halfZ),
+            lanes: op.spans.filter((s) => s.lane).map((s) => ({ name: s.lane!, clearance: s.clearance })),
+            currentLane: currentLane(),
+          }
+        : { title: 'DELIVERY', name: 'SASKATOON CITY LIMITS', distance: frontZ - DELIVERY_Z, lanes: [], currentLane: null },
     });
     renderer.render(scene, camera);
   };
@@ -256,7 +302,8 @@ export async function startSim(opts: SimOptions) {
       timeScale = 0.2;
       if (slowmo <= 0 && struck) {
         timeScale = 1;
-        ui.showStrike({ where: OVERPASS.name.replace(' · ', ' at '), speedKmh: struck.speedKmh, load: rig.load });
+        const op = overpasses.find((o) => o.def.id === struck!.at)!;
+        ui.showStrike({ where: op.def.name, kind: op.def.kind, speedKmh: struck.speedKmh, load: rig.load });
       }
     }
     acc += realDt * timeScale;
@@ -272,28 +319,29 @@ export async function startSim(opts: SimOptions) {
     requestAnimationFrame(frame);
   };
 
-  await reset();
+  await reset({ load: 0, phase: 'dispatch' });
+  openDispatch(0);
 
   // --- test hooks
   const state = () => {
     const tt = rig.tractorBody.translation(), tr = rig.trailerBody.translation();
-    const x = tt.x;
     const q = rig.tractorBody.rotation();
     // heading: 0 when driving -z, positive when turning toward +x
     const fx = -(2 * (q.x * q.z + q.w * q.y)), fz = -(1 - 2 * (q.x * q.x + q.y * q.y));
-    const heading = Math.atan2(fx, -fz);
+    const op = nextOverpass();
     return {
-      heading,
-      phase, simTime, camMode,
-      load: rig.load.name, loadTarget: rig.load.top,
+      heading: Math.atan2(fx, -fz),
+      phase, simTime, driveTime, camMode,
+      loadIndex, load: rig.load.name, loadTarget: rig.load.top,
       speedKmh: rig.speed() * 3.6,
       tractor: { x: tt.x, y: tt.y, z: tt.z, up: rig.tractor.up().y, contacts: rig.tractor.inContact() },
-      trailer: { x: tr.x, y: tr.y, z: tr.z, up: rig.trailer.up().y, contacts: rig.trailer.inContact() },
-      steer: rig.steerAngle, lower: rig.lower,
+      trailer: { x: tr.x, y: tr.y, z: tr.z, up: rig.trailer.up().y, contacts: rig.trailer.inContact(), rear: tr.z + TRAILER_REAR },
+      steer: rig.steerAngle, lower: rig.lower, lowerings,
       loadTop: rig.loadTopAboveRoad(),
       calibrated: rig.calibrated, calibrationError: rig.calibrationError,
-      lane: currentLane(), clearanceHere: overpass.clearanceAt(x),
-      struck, cleared, rolled: phase === 'rolled',
+      lane: currentLane(),
+      next: op ? { id: op.def.id, z: op.def.z, halfZ: op.halfZ, lanes: op.spans.filter((s) => s.lane).map((s) => ({ lane: s.lane, clearance: s.clearance, min: s.min, max: s.max })) } : null,
+      cleared, struck, rolled: phase === 'rolled', delivered: phase === 'delivered',
     };
   };
   window.__sim = state;
@@ -311,7 +359,11 @@ export async function startSim(opts: SimOptions) {
     render(dt);
     return snap ? renderer.domElement.toDataURL('image/jpeg', 0.85) : undefined;
   };
-  window.__simDebug = { rig: () => rig, world, scene, camera, renderer, TUNE, reset, setCam: (m: CamMode) => (camMode = m), overpass };
+  window.__simDebug = {
+    rig: () => rig, world, scene, camera, renderer, TUNE, overpasses, LOADS,
+    reset, setCam: (m: CamMode) => (camMode = m),
+    clearProgress: () => saveProgress(0),
+  };
 
   requestAnimationFrame(frame);
   return { reset };

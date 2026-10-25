@@ -54,7 +54,8 @@ export interface SuspensionTune {
   maxForce: number;
   frictionSlip: number;
   sideStiffness: number;
-  antiRoll: number; // N per metre of left/right compression difference
+  antiRoll: number; // N per metre of left/right compression difference, per kg of body mass
+  antiRollDamping: number; // N per (m/s) of that difference's rate, per kg of body mass
 }
 
 const UP = { x: 0, y: -1, z: 0 }; // suspension ray direction
@@ -63,6 +64,7 @@ const AXLE = { x: 1, y: 0, z: 0 }; // +x axle so positive engine force drives to
 export class Vehicle {
   readonly ctl: RAPIER.DynamicRayCastVehicleController;
   readonly axles: [number, number][] = [];
+  private rollPrev: number[] = [];
 
   constructor(
     world: RAPIER.World,
@@ -122,14 +124,19 @@ export class Vehicle {
     b.resetTorques(true);
 
     const up = this.up();
-    for (const [l, r] of this.axles) {
-      const cl = this.compression(l), cr = this.compression(r);
-      const f = this.tune.antiRoll * (cl - cr);
-      if (f === 0) continue;
+    // Anti-roll bars scale with the body's mass and are damped; a fixed stiffness
+    // tuned for a loaded trailer made a lightly loaded one rock itself into a strike.
+    const m = b.mass();
+    this.axles.forEach(([l, r], k) => {
+      const diff = this.compression(l) - this.compression(r);
+      const rate = this.rollPrev[k] === undefined ? 0 : (diff - this.rollPrev[k]) / dt;
+      this.rollPrev[k] = diff;
+      const f = m * (this.tune.antiRoll * diff + this.tune.antiRollDamping * rate);
+      if (f === 0) return;
       const pl = this.hardPointWorld(l), pr = this.hardPointWorld(r);
       b.addForceAtPoint({ x: up.x * f, y: up.y * f, z: up.z * f }, pl, true);
       b.addForceAtPoint({ x: -up.x * f, y: -up.y * f, z: -up.z * f }, pr, true);
-    }
+    });
     this.ctl.updateVehicle(dt, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, GROUND_QUERY);
   }
 

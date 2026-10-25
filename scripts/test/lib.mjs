@@ -21,7 +21,7 @@ export const DESKTOP = { viewport: { width: 1280, height: 720 }, deviceScaleFact
 export const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.77, isMobile: true, hasTouch: true };
 export const PHONE_LANDSCAPE = { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2.77, isMobile: true, hasTouch: true };
 
-export async function openSim(browser, ctxOpts = DESKTOP, query = '') {
+export async function openSim(browser, ctxOpts = DESKTOP, query = '', { keepDispatch = false } = {}) {
   const ctx = await browser.newContext(ctxOpts);
   const page = await ctx.newPage();
   const errors = [];
@@ -30,5 +30,7 @@ export async function openSim(browser, ctxOpts = DESKTOP, query = '') {
   await page.goto(SIM + query);
   await page.waitForFunction(() => typeof window.__sim === 'function', null, { timeout: 120000 });
   await page.evaluate(() => window.__simPause(true));
+  // Most tests skip the dispatch sheet and drive straight away.
+  if (!keepDispatch) await page.evaluate(() => window.__simDebug.reset());
   return { ctx, page, errors };
 }

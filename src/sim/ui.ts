@@ -15,7 +15,7 @@ export interface HudState {
   load: LoadDef;
   loadTop: number; // current top-of-load height (lowered or not)
   lowered: number; // 0..1
-  next?: { name: string; distance: number; lanes: { name: string; clearance: number }[]; currentLane: string | null };
+  next?: { title: string; name: string; distance: number; lanes: { name: string; clearance: number }[]; currentLane: string | null };
 }
 
 const CSS = `
@@ -62,15 +62,40 @@ const CSS = `
 .bs-card table{width:100%;border-collapse:collapse;font:500 14px Oswald,sans-serif;text-align:left}
 .bs-card td{padding:3px 0;border-bottom:1px dashed #bbb}.bs-card td:last-child{text-align:right;white-space:nowrap}
 .bs-card tr.total td{border-bottom:none;font:700 18px Oswald,sans-serif;padding-top:8px}
-.bs-card .go{margin-top:12px;display:inline-block;background:#111;color:#fff;font:22px Anton,Impact,sans-serif;padding:8px 22px;border-radius:10px;cursor:pointer;border:none}
+.bs-card .btns{display:flex;gap:8px;justify-content:center;margin-top:12px}.bs-card .go.alt{background:#fff;color:#111;border:2px solid #111}.bs-card.delivered h1{color:#0b6b3a}
+.bs-card .go{display:inline-block;background:#111;color:#fff;font:22px Anton,Impact,sans-serif;padding:8px 22px;border-radius:10px;cursor:pointer;border:none}
 .bs-toast{position:absolute;left:50%;top:32%;transform:translateX(-50%);background:#0b6b3a;color:#fff;border:3px solid #fff;border-radius:10px;padding:8px 18px;font:34px Anton,Impact,sans-serif;opacity:0;transition:opacity .3s}
 .bs-toast.show{opacity:1}
 .bs-strip{position:absolute;left:0;right:0;bottom:0;background:#111;color:#fff;font:600 13px Oswald,sans-serif;padding:8px 12px;text-align:center;pointer-events:auto;z-index:5}
 .bs-strip b{color:#f2c200}
-.bs-start{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,14,8,.35);pointer-events:auto;cursor:pointer;z-index:4}
-.bs-start .box{background:#0b6b3a;color:#fff;border:4px solid #fff;outline:3px solid #0b6b3a;border-radius:14px;padding:14px 26px;text-align:center;max-width:88vw}
-.bs-start .big{font:44px/1 Anton,Impact,sans-serif;letter-spacing:.02em}
-.bs-start .small{font:500 14px/1.5 Oswald,sans-serif;margin-top:8px;opacity:.95}
+.bs-dispatch{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,14,8,.45);pointer-events:auto;z-index:4;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.bs-dispatch .sheet{background:#f7f3e8;color:#16130f;border:3px solid #16130f;border-radius:6px;width:min(94vw,440px);max-height:100%;overflow:auto;padding:14px 16px 12px;box-shadow:0 12px 40px rgba(0,0,0,.5);font-family:Oswald,sans-serif}
+.bs-dispatch .hdr{display:flex;justify-content:space-between;font:700 13px Oswald,sans-serif;letter-spacing:.14em;border-bottom:2px solid #16130f;padding-bottom:6px}
+.bs-dispatch .date{font:500 14px Oswald,sans-serif;letter-spacing:.08em;margin-top:8px;color:#5b5246}
+.bs-dispatch .name{font:42px/1 Anton,Impact,sans-serif;margin:2px 0 8px}
+.bs-dispatch .dims{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bs-dispatch .dims div{background:#f2c200;border:2px solid #16130f;border-radius:6px;padding:4px 8px;font:700 11px Oswald,sans-serif;letter-spacing:.1em}
+.bs-dispatch .dims b{display:block;font:30px/1.05 Anton,Impact,sans-serif;letter-spacing:0}
+.bs-dispatch .dims div+div{background:#fff}
+.bs-dispatch .brief{font:500 15px/1.4 Oswald,sans-serif;margin:10px 0 6px}
+.bs-dispatch .route{font:500 12px/1.4 Oswald,sans-serif;color:#5b5246}
+.bs-dispatch .picks{display:flex;gap:6px;margin:10px 0}
+.bs-dispatch .pick{flex:1;min-width:0;border:2px solid #16130f;border-radius:6px;background:#fff;font:22px/1 Anton,Impact,sans-serif;padding:5px 0 3px;cursor:pointer;color:#16130f}
+.bs-dispatch .pick span{display:block;font:600 10px Oswald,sans-serif;letter-spacing:.06em;margin-top:2px}
+.bs-dispatch .pick.on{background:#0b6b3a;color:#fff}
+.bs-dispatch .pick:disabled{opacity:.45;cursor:default}
+.bs-dispatch .go{width:100%;margin-top:2px;background:#16130f;color:#fff;font:26px Anton,Impact,sans-serif;padding:10px;border-radius:8px;border:none;cursor:pointer}
+.bs-dispatch .howto{font:500 12px/1.4 Oswald,sans-serif;text-align:center;margin-top:8px;color:#5b5246}
+@media (max-height:540px){
+.bs-dispatch .sheet{width:min(96vw,780px);padding:10px 14px}
+.bs-dispatch .cols{display:grid;grid-template-columns:1fr 1fr;column-gap:18px;align-items:start}
+.bs-dispatch .name{font-size:30px;margin-bottom:6px}
+.bs-dispatch .dims b{font-size:22px}
+.bs-dispatch .brief{font-size:13px;margin:6px 0 0}
+.bs-dispatch .route{margin-top:8px}
+.bs-dispatch .picks{margin:8px 0}
+.bs-dispatch .go{font-size:22px;padding:8px}
+}
 .bs-keys{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;font:500 12px Oswald,sans-serif;padding:6px 10px;border-radius:8px;line-height:1.5}
 @media (pointer:coarse){.bs-keys{display:none}}
 @media (max-width:560px){
@@ -98,8 +123,9 @@ export class UI {
   touch: TouchState = { steer: 0, gas: 0, brake: 0, lower: false, jake: false };
   onCam: () => void = () => {};
   onRestart: () => void = () => {};
-  onStart: () => void = () => {};
-  started = false;
+  onDispatch: (next?: number) => void = () => {};
+  touchMode = false;
+  private dispatch: { el: HTMLDivElement; roll: () => void } | null = null;
   private els: Record<string, HTMLElement> = {};
   private card: HTMLDivElement | null = null;
   private toastTimer = 0;
@@ -119,7 +145,7 @@ export class UI {
       <div class="bs-sign bs-guide" data-k="guide"><div class="t" data-k="gt">NEXT OVERPASS</div><div class="n" data-k="gn"></div><div class="d" data-k="gd"></div><div class="bs-chips" data-k="chips"></div></div>
       <div class="bs-sign bs-load" data-k="load"><div class="dia"></div><div class="txt"><div class="t">LOAD</div><div class="v" data-k="lh">0.00</div><div class="s" data-k="ls">m</div></div></div>
       <div class="bs-toast" data-k="toast"></div>
-      <div class="bs-start" data-k="start"><div class="box"><div class="big" data-k="startbig">CLICK TO DRIVE</div><div class="small" data-k="startsmall">W / S gas and brake · A / D steer · hold SPACE to lower the load</div></div></div>
+
       <div class="bs-keys">W/S gas &amp; brake · A/D steer · hold SPACE lower · J jake · C camera · R restart</div>
       <div class="bs-ctrl bs-wheel" data-k="wheel"><div class="spoke"></div><div class="spoke v"></div></div>
       <div class="bs-ctrl bs-btn bs-cam" data-k="cam">CAM</div>
@@ -131,13 +157,7 @@ export class UI {
     if (forceTouch) this.root.querySelectorAll<HTMLElement>('.bs-ctrl').forEach((e) => (e.style.display = 'flex'));
     this.bindTouch();
     this.inAppBrowserGuard();
-    // The game runs inside a frame: keys only arrive once it has focus, so the
-    // first click or tap starts the session and focuses it.
-    if (forceTouch || matchMedia('(pointer: coarse)').matches) {
-      this.els.startbig.textContent = 'TAP TO DRIVE';
-      this.els.startsmall.textContent = 'Wheel bottom-left · pedals bottom-right · hold LOWER LOAD to drop the deck 30 cm';
-    }
-    this.els.start.addEventListener('pointerdown', (e) => { e.preventDefault(); this.start(); });
+    this.touchMode = forceTouch || matchMedia('(pointer: coarse)').matches;
   }
 
   private bindTouch() {
@@ -216,9 +236,11 @@ export class UI {
     const g = this.els.guide;
     if (!s.next) { g.style.display = 'none'; return; }
     g.style.display = '';
+    this.els.gt.textContent = s.next.title;
     this.els.gn.textContent = s.next.name;
     this.els.gd.textContent = s.next.distance > 1000 ? `${(s.next.distance / 1000).toFixed(1)} km` : `${Math.max(0, Math.round(s.next.distance / 10) * 10)} m`;
     const full = s.load.top, low = s.load.top - 0.3;
+    this.els.chips.style.display = s.next.lanes.length ? '' : 'none';
     this.els.chips.innerHTML = s.next.lanes
       .map((l) => {
         const cls = full < l.clearance ? 'fits' : low < l.clearance ? 'lower' : 'no';
@@ -228,11 +250,52 @@ export class UI {
       .join('');
   }
 
-  start() {
-    if (this.started) return;
-    this.started = true;
-    this.els.start.remove();
-    this.onStart();
+  /**
+   * Dispatch sheet: pick an unlocked load, read the briefing, roll out. Rolling out
+   * is also the first click into the framed game, which gives it keyboard focus.
+   */
+  showDispatch(o: { loads: LoadDef[]; unlocked: number; selected: number; onRoll: (i: number) => void }) {
+    this.hideCard();
+    let sel = Math.min(o.selected, o.unlocked);
+    const el = document.createElement('div');
+    el.className = 'bs-dispatch';
+    const render = () => {
+      const d = o.loads[sel];
+      el.innerHTML = `<div class="sheet">
+        <div class="hdr"><span>DISPATCH</span><span>LOAD ${d.id} OF ${o.loads.length}</span></div>
+        <div class="cols"><div class="colA">
+        <div class="date">${d.date.toUpperCase()}, 2026</div>
+        <div class="name">${d.name.toUpperCase()}</div>
+        <div class="dims"><div><b>${d.top.toFixed(2)} m</b>TOP OF LOAD</div><div><b>${(d.top - 0.3).toFixed(2)} m</b>LOWERED</div></div>
+        <p class="brief">${d.briefing}</p>
+        </div><div class="colB">
+        <div class="route">Highway 11 north into Saskatoon · 6 overpasses · real strike site: ${d.where}</div>
+        <div class="picks">${o.loads.map((l, i) => `<button class="pick${i === sel ? ' on' : ''}" data-i="${i}" ${i > o.unlocked ? 'disabled' : ''}>${l.id}<span>${i > o.unlocked ? 'LOCKED' : l.date}</span></button>`).join('')}</div>
+        <button class="go roll">${this.touchMode ? 'TAP' : 'CLICK'} TO ROLL OUT</button>
+        <div class="howto">${this.touchMode ? 'Wheel bottom-left · pedals bottom-right · hold LOWER LOAD to drop the deck 30 cm' : 'W / S gas and brake · A / D steer · hold SPACE to lower 30 cm · J jake · C camera · R restart'}</div>
+        </div></div>
+      </div>`;
+      el.querySelectorAll<HTMLButtonElement>('.pick').forEach((b) => b.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        if (b.disabled) return;
+        sel = +b.dataset.i!;
+        render();
+      }));
+      el.querySelector('.roll')!.addEventListener('pointerdown', (e) => { e.preventDefault(); roll(); });
+    };
+    const roll = () => {
+      if (!this.dispatch) return;
+      this.dispatch = null;
+      el.remove();
+      o.onRoll(sel);
+    };
+    render();
+    this.root.appendChild(el);
+    this.dispatch = { el, roll };
+  }
+
+  rollOut() {
+    this.dispatch?.roll();
   }
 
   toast(text: string, ms = 1800) {
@@ -243,34 +306,61 @@ export class UI {
     this.toastTimer = window.setTimeout(() => t.classList.remove('show'), ms);
   }
 
-  showStrike(info: { where: string; speedKmh: number; load: LoadDef }) {
+  showStrike(info: { where: string; kind: 'concrete' | 'rail'; speedKmh: number; load: LoadDef }) {
     const k = Math.max(0.4, info.speedKmh / 60);
-    const rows: [string, number][] = [
-      [`Girder repair, ${info.where}`, 185000 * k],
-      ['Lane closures and traffic control', 41000 + 9000 * k],
-      ['Structural engineer, weekend rate', 14750],
-      ['Concrete crumbs swept from Circle Drive', 2380],
-      ['Clearance sign that was right all along', 0],
-    ];
+    const rail = info.kind === 'rail';
+    const rows: [string, number][] = rail
+      ? [
+          [`Steel girder straightening, ${info.where}`, 240000 * k],
+          ['Trains held while the bridge is inspected', 68000 + 12000 * k],
+          ['Highway closure and detour signs', 31000],
+          ['Rivets, assorted, retrieved from Highway 11', 1150],
+          ['Clearance sign that was right all along', 0],
+        ]
+      : [
+          [`Girder repair, ${info.where}`, 185000 * k],
+          ['Lane closures and traffic control', 41000 + 9000 * k],
+          ['Structural engineer, weekend rate', 14750],
+          ['Concrete crumbs swept off the highway', 2380],
+          ['Clearance sign that was right all along', 0],
+        ];
     const total = rows.reduce((a, [, v]) => a + v, 0);
-    this.showCard('strike', 'BRIDGE STRIKE!', `${info.load.name} vs. ${info.where} at ${Math.round(info.speedKmh)} km/h. City of Saskatoon repair bill:`,
-      `<table>${rows.map(([n, v]) => `<tr><td>${n}</td><td>${fmt$(v)}</td></tr>`).join('')}<tr class="total"><td>TOTAL</td><td>${fmt$(total)}</td></tr></table>`);
+    this.showCard('strike', 'BRIDGE STRIKE!', `${info.load.name} vs. ${info.where} at ${Math.round(info.speedKmh)} km/h. ${rail ? 'Repair bill:' : 'City of Saskatoon repair bill:'}`,
+      `<table>${rows.map(([n, v]) => `<tr><td>${n}</td><td>${fmt$(v)}</td></tr>`).join('')}<tr class="total"><td>TOTAL</td><td>${fmt$(total)}</td></tr></table>`,
+      [['TRY AGAIN', () => this.onRestart()], ['DISPATCH', () => this.onDispatch()]]);
+  }
+
+  showDelivered(o: { load: LoadDef; time: number; lowerings: number; topSpeed: number; next?: LoadDef; nextIndex: number }) {
+    const mmss = `${Math.floor(o.time / 60)}:${String(Math.floor(o.time % 60)).padStart(2, '0')}`;
+    const rows: [string, string][] = [
+      ['Overpasses cleared', '6 of 6'],
+      ['Time, highway to city limits', mmss],
+      ['Times you lowered the deck', String(o.lowerings)],
+      ['Top speed', `${Math.round(o.topSpeed)} km/h`],
+      ['City repair bill', '$0'],
+    ];
+    const sub = o.next ? `${o.load.name} delivered to Saskatoon. Next up: ${o.next.name}, ${o.next.top.toFixed(2)} m.` : 'All five loads delivered. Every overpass in Saskatoon is still standing.';
+    const buttons: [string, () => void][] = o.next
+      ? [['NEXT LOAD', () => this.onDispatch(o.nextIndex)], ['DRIVE IT AGAIN', () => this.onRestart()]]
+      : [['DISPATCH', () => this.onDispatch(0)], ['DRIVE IT AGAIN', () => this.onRestart()]];
+    this.showCard('delivered', 'LOAD DELIVERED', sub, `<table>${rows.map(([n, v]) => `<tr><td>${n}</td><td>${v}</td></tr>`).join('')}</table>`, buttons);
   }
 
   showRolled(load: LoadDef) {
-    this.showCard('rolled', 'ROLLED IT!', `The ${load.name.toLowerCase()} is now on its side, and so are you.`, '<p style="font:500 14px Oswald,sans-serif;margin:0">Steering lock is speed-limited for a reason. The ditch has your load now.</p>');
+    this.showCard('rolled', 'ROLLED IT!', `The ${load.name.toLowerCase()} is now on its side, and so are you.`, '<p style="font:500 14px Oswald,sans-serif;margin:0">Steering lock is speed-limited for a reason. The ditch has your load now.</p>',
+      [['TRY AGAIN', () => this.onRestart()], ['DISPATCH', () => this.onDispatch()]]);
   }
 
   showCleared(text: string) {
     this.toast(text, 2200);
   }
 
-  private showCard(kind: string, title: string, sub: string, body: string) {
+  private showCard(kind: string, title: string, sub: string, body: string, buttons: [string, () => void][]) {
     this.hideCard();
     const c = document.createElement('div');
     c.className = `bs-card ${kind}`;
-    c.innerHTML = `<h1>${title}</h1><div class="sub">${sub}</div>${body}<button class="go">TRY AGAIN</button>`;
-    c.querySelector('.go')!.addEventListener('click', () => this.onRestart());
+    c.innerHTML = `<h1>${title}</h1><div class="sub">${sub}</div>${body}<div class="btns">${buttons.map(([t], i) => `<button class="go${i ? ' alt' : ''}" data-i="${i}">${t}</button>`).join('')}</div>`;
+    c.querySelectorAll<HTMLButtonElement>('.go').forEach((b) => b.addEventListener('click', () => buttons[+b.dataset.i!][1]()));
     this.root.appendChild(c);
     this.card = c;
   }
@@ -278,5 +368,7 @@ export class UI {
   hideCard() {
     this.card?.remove();
     this.card = null;
+    this.dispatch?.el.remove();
+    this.dispatch = null;
   }
 }

@@ -252,9 +252,15 @@
       "triangles": 40000,
       "texture": 1024,
       "expect": {
-        "y": 4.49
+        "y": 4.49,
+        "x": 3.2
       },
-      "notes": "Upright corrugated bin; load 4 tops out at 5.20 m on a 0.71 m deck. Diameter follows from proportions (~3.9 m, overhangs the deck)."
+      "notes": "Upright corrugated bin; load 4 tops out at 5.20 m on a 0.71 m deck. Slimmed to ~3.2 m diameter (axisScale) so it stays inside one 3.7 m lane; at 3.9 m it overhung the lane line and struck the lower neighbouring span.",
+      "axisScale": [
+        0.82,
+        1,
+        0.82
+      ]
     },
     "load5-hoppers": {
       "src": "assets/raw/models/load5-hoppers-hunyuan.glb",

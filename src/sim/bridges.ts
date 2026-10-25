@@ -24,6 +24,7 @@ export interface Overpass {
   spans: LaneSpan[];
   group: THREE.Group;
   strikeColliders: Set<number>;
+  halfZ: number; // half the structure's depth along the highway
   /** Soffit height above the road at a given x (northbound side). */
   clearanceAt(x: number): number;
 }
@@ -80,8 +81,11 @@ export function buildOverpass(
   scene: THREE.Scene,
   world: RAPIER.World,
   def: OverpassDef,
-  concreteMap: THREE.Texture,
+  maps: { concrete: THREE.Texture; steel: THREE.Texture },
 ): Overpass {
+  const rail = def.kind === 'rail';
+  // A road overpass carries a 12 m deck; a rail bridge is a narrow steel through-girder span.
+  const HALF_Z = rail ? 3.0 : DECK_HALF_Z;
   const group = new THREE.Group();
   group.name = def.id;
   scene.add(group);
@@ -95,17 +99,22 @@ export function buildOverpass(
     { min: NB.outerEdge, max: ABUT_X, clearance: cr },
   ];
   const spans = [...nb, ...nb.map((s) => ({ ...s, min: -s.max, max: -s.min, lane: undefined }))];
-  const slabBottom = Math.max(cl, cr) + 1.15;
-  const deckTop = slabBottom + SLAB;
+  const cmax = Math.max(cl, cr);
+  const slabBottom = cmax + 1.15;
+  const deckTop = rail ? cmax + 2.6 : slabBottom + SLAB;
 
   const concrete = (repeat: number) => {
-    const map = concreteMap.clone();
+    const map = maps.concrete.clone();
     map.needsUpdate = true;
     map.repeat.set(repeat, repeat * 0.4);
     return new THREE.MeshStandardMaterial({ map, color: 0xd8d2c8, roughness: 0.92, metalness: 0 });
   };
   const deckMat = concrete(6);
   const pierMat = concrete(1.5);
+  const steelMap = maps.steel.clone();
+  steelMap.needsUpdate = true;
+  steelMap.repeat.set(10, 1);
+  const steelMat = new THREE.MeshStandardMaterial({ map: steelMap, roughness: 0.7, metalness: 0.55 });
 
   const strikeColliders = new Set<number>();
   const addBox = (w: number, h: number, d: number, x: number, y: number, z: number, mat: THREE.Material, colliderGroup?: number) => {
@@ -124,26 +133,41 @@ export function buildOverpass(
     return mesh;
   };
 
-  // Slab and parapets
-  addBox(ABUT_X * 2, SLAB, DECK_HALF_Z * 2, 0, slabBottom + SLAB / 2, def.z, deckMat);
-  for (const s of [-1, 1]) addBox(ABUT_X * 2, 1.05, 0.35, 0, deckTop + 0.52, def.z + s * (DECK_HALF_Z - 0.2), deckMat);
+  if (!rail) {
+    // Slab and parapets
+    addBox(ABUT_X * 2, SLAB, HALF_Z * 2, 0, slabBottom + SLAB / 2, def.z, deckMat);
+    for (const s of [-1, 1]) addBox(ABUT_X * 2, 1.05, 0.35, 0, deckTop + 0.52, def.z + s * (HALF_Z - 0.2), deckMat);
+  } else {
+    // Ballast and track run level across the top of the floor.
+    const ballastMat = new THREE.MeshStandardMaterial({ color: 0x6d655c, roughness: 1 });
+    addBox(ABUT_X * 2, 0.4, HALF_Z * 2 - 1.2, 0, cmax + 0.55, def.z, ballastMat);
+    for (const rz of [-0.72, 0.72]) addBox(ABUT_X * 2, 0.16, 0.08, 0, cmax + 0.83, def.z + rz, steelMat);
+  }
 
-  // Girders per span: deeper over lower-clearance lanes. Five girder lines across the deck.
   for (const s of spans) {
-    const w = s.max - s.min, cx = (s.min + s.max) / 2, depth = slabBottom - s.clearance;
-    for (let k = 0; k < 5; k++) {
-      const gz = def.z - DECK_HALF_Z + 0.6 + k * ((DECK_HALF_Z * 2 - 1.2) / 4);
-      addBox(w, depth, 0.55, cx, s.clearance + depth / 2, gz, deckMat);
+    const w = s.max - s.min, cx = (s.min + s.max) / 2;
+    if (!rail) {
+      // Girders per span: deeper over lower-clearance lanes. Five girder lines across the deck.
+      const depth = slabBottom - s.clearance;
+      for (let k = 0; k < 5; k++) {
+        const gz = def.z - HALF_Z + 0.6 + k * ((HALF_Z * 2 - 1.2) / 4);
+        addBox(w, depth, 0.55, cx, s.clearance + depth / 2, gz, deckMat);
+      }
+      // Fascia on the approach face, closing the girder ends.
+      addBox(w, depth + SLAB, 0.25, cx, s.clearance + (depth + SLAB) / 2, def.z + HALF_Z + 0.05, deckMat);
+    } else {
+      // Two riveted plate girders with a steel floor slung between their bottom flanges.
+      const h = deckTop - s.clearance;
+      for (const gz of [-1, 1]) addBox(w, h, 0.36, cx, s.clearance + h / 2, def.z + gz * (HALF_Z - 0.18), steelMat);
+      addBox(w, 0.35, HALF_Z * 2 - 0.4, cx, s.clearance + 0.175, def.z, steelMat);
     }
-    // Strike volume: the whole span from soffit to deck top.
+    // Strike volume: the whole span from soffit to the top of the structure.
     const col = world.createCollider(
-      RAPIER.ColliderDesc.cuboid(w / 2, (deckTop - s.clearance) / 2, DECK_HALF_Z)
+      RAPIER.ColliderDesc.cuboid(w / 2, (deckTop - s.clearance) / 2, HALF_Z)
         .setTranslation(cx, (s.clearance + deckTop) / 2, def.z)
         .setCollisionGroups(groups(G.DECK, 0xffff)),
     );
     strikeColliders.add(col.handle);
-    // Fascia on the approach face, closing the girder ends.
-    addBox(w, depth + SLAB, 0.25, cx, s.clearance + (depth + SLAB) / 2, def.z + DECK_HALF_Z + 0.05, deckMat);
   }
 
   // Piers: median and outer shoulders only. Three columns each, with a cap beam.
@@ -153,31 +177,32 @@ export function buildOverpass(
     const soffit = Math.min(...spans.filter((s) => s.min <= px + 1 && s.max >= px - 1).map((s) => s.clearance));
     const ground = Math.min(0, terrainHeight(px, def.z));
     const colH = soffit - 0.7 - ground;
-    for (const dz of [-3.6, 0, 3.6]) {
+    const cols = rail ? [-1.6, 1.6] : [-3.6, 0, 3.6];
+    for (const dz of cols) {
       const col = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.5, colH, 16), pierMat);
       col.position.set(px, ground + colH / 2, def.z + dz);
       col.castShadow = col.receiveShadow = true;
       group.add(col);
     }
-    addBox(1.3, 0.7, DECK_HALF_Z * 2 - 0.6, px, soffit - 0.35, def.z, pierMat);
+    addBox(1.3, 0.7, HALF_Z * 2 - 0.6, px, soffit - 0.35, def.z, pierMat);
     const pc = world.createCollider(
-      RAPIER.ColliderDesc.cuboid(0.55, (soffit - ground) / 2, DECK_HALF_Z - 0.6)
+      RAPIER.ColliderDesc.cuboid(0.55, (soffit - ground) / 2, HALF_Z - 0.6)
         .setTranslation(px, (soffit + ground) / 2, def.z)
         .setCollisionGroups(groups(G.PIER, 0xffff)),
     );
     strikeColliders.add(pc.handle);
     // Hazard board on the traffic face of the front column
     const board = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 1.8), hazardMat);
-    board.position.set(px, ground + 1.6, def.z + 3.6 + 0.52);
+    board.position.set(px, ground + 1.6, def.z + cols[cols.length - 1] + 0.52);
     group.add(board);
   }
 
   // Abutment walls and grassed embankments carrying the crossing road.
   const fillMat = new THREE.MeshStandardMaterial({ color: 0x8a8150, roughness: 1 });
   for (const s of [-1, 1]) {
-    addBox(1.2, deckTop + 1.5, DECK_HALF_Z * 2 + 2, s * (ABUT_X + 0.6), deckTop / 2 - 0.75, def.z, pierMat);
+    addBox(1.2, deckTop + 1.5, HALF_Z * 2 + 2, s * (ABUT_X + 0.6), deckTop / 2 - 0.75, def.z, pierMat);
     const len = 70;
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(len, 1, DECK_HALF_Z * 2 + 8), fillMat);
+    const ramp = new THREE.Mesh(new THREE.BoxGeometry(len, 1, HALF_Z * 2 + 8), fillMat);
     const slope = Math.atan2(deckTop + 1, len);
     ramp.geometry.translate(len / 2, -0.5, 0);
     ramp.position.set(s * (ABUT_X + 1.2), deckTop, def.z);
@@ -193,7 +218,8 @@ export function buildOverpass(
       new THREE.PlaneGeometry(1.6, 0.8),
       new THREE.MeshStandardMaterial({ map: plateTexture(s.clearance), roughness: 0.5, emissive: 0x222222 }),
     );
-    plate.position.set((s.min + s.max) / 2, s.clearance + (slabBottom - s.clearance) * 0.5, def.z + DECK_HALF_Z + 0.2);
+    const y = rail ? s.clearance + 1.0 : s.clearance + (slabBottom - s.clearance) * 0.5;
+    plate.position.set((s.min + s.max) / 2, y, def.z + HALF_Z + 0.2);
     group.add(plate);
   }
 
@@ -201,5 +227,19 @@ export function buildOverpass(
     const s = spans.find((sp) => x >= sp.min && x <= sp.max);
     return s ? s.clearance : Infinity;
   };
-  return { def, spans, group, strikeColliders, clearanceAt };
+  return { def, spans, group, strikeColliders, halfZ: HALF_Z, clearanceAt };
 }
+
+// The drive: Highway 11 north into the city through six overpasses, in the order
+// they are met (the truck drives toward -z). A composite route with real names;
+// per-lane clearances are the approved gameplay values (northbound left, right).
+export const START_Z = 930;
+export const DELIVERY_Z = -720; // city limits: the load is delivered once the trailer is past
+export const ROUTE: OverpassDef[] = [
+  { id: 'hwy16-circle', name: 'HWY 16 · CIRCLE DR', z: 700, kind: 'concrete', clearance: [4.7, 5.1] },
+  { id: '108th', name: '108TH STREET', z: 470, kind: 'concrete', clearance: [5.2, 4.95] },
+  { id: 'cpkc', name: 'CPKC RAIL BRIDGE', z: 240, kind: 'rail', clearance: [5.4, 5.0] },
+  { id: 'mckercher', name: 'MCKERCHER DRIVE', z: 10, kind: 'concrete', clearance: [4.85, 5.25] },
+  { id: '51st', name: '51ST STREET', z: -220, kind: 'concrete', clearance: [5.05, 5.45] },
+  { id: 'cn-idylwyld', name: 'CN RAIL · IDYLWYLD', z: -450, kind: 'rail', clearance: [5.15, 4.8] },
+];

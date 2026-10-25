@@ -248,3 +248,40 @@ export function buildWorld(scene: THREE.Scene, world: RAPIER.World): World {
     },
   };
 }
+
+/** Green "SASKATOON / CITY LIMITS" sign on the right shoulder at the delivery line. */
+export function buildCityLimits(scene: THREE.Scene, z: number) {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#0b6b3a';
+  g.fillRect(0, 0, 1024, 512);
+  g.strokeStyle = '#fff';
+  g.lineWidth = 16;
+  g.strokeRect(20, 20, 984, 472);
+  g.fillStyle = '#fff';
+  g.textAlign = 'center';
+  g.font = '190px Anton, Impact, sans-serif';
+  g.fillText('SASKATOON', 512, 270);
+  g.font = '500 84px Oswald, sans-serif';
+  g.fillText('CITY LIMITS', 512, 410);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const group = new THREE.Group();
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(5, 2.5), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }));
+  panel.position.set(0, 3.6, 0);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(5.1, 2.6, 0.08), new THREE.MeshStandardMaterial({ color: 0x7d8288, metalness: 0.6, roughness: 0.5 }));
+  back.position.set(0, 3.6, -0.06);
+  group.add(panel, back);
+  for (const px of [-1.8, 1.8]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 4.8, 8), new THREE.MeshStandardMaterial({ color: 0x8a8f94, metalness: 0.7, roughness: 0.4 }));
+    post.position.set(px, 2.4, -0.15);
+    post.castShadow = true;
+    group.add(post);
+  }
+  group.position.set(NB.gravelEdge + 3.2, 0, z);
+  group.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
+  scene.add(group);
+  return group;
+}
