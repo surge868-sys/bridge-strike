@@ -84,6 +84,9 @@ const CSS = `
 .bs-dispatch .pick span{display:block;font:600 10px Oswald,sans-serif;letter-spacing:.06em;margin-top:2px}
 .bs-dispatch .pick.on{background:#0b6b3a;color:#fff}
 .bs-dispatch .pick:disabled{opacity:.45;cursor:default}
+.bs-dispatch .tod{display:flex;gap:4px;margin:0 0 8px}
+.bs-dispatch .tod .t{flex:1;min-width:0;border:2px solid #16130f;border-radius:5px;background:#fff;color:#16130f;font:700 11px Oswald,sans-serif;letter-spacing:.08em;padding:4px 0;cursor:pointer}
+.bs-dispatch .tod .t.on{background:#f2c200}
 .bs-dispatch .go{width:100%;margin-top:2px;background:#16130f;color:#fff;font:26px Anton,Impact,sans-serif;padding:10px;border-radius:8px;border:none;cursor:pointer}
 .bs-dispatch .howto{font:500 12px/1.4 Oswald,sans-serif;text-align:center;margin-top:8px;color:#5b5246}
 @media (max-height:540px){
@@ -94,6 +97,9 @@ const CSS = `
 .bs-dispatch .brief{font-size:13px;margin:6px 0 0}
 .bs-dispatch .route{margin-top:8px}
 .bs-dispatch .picks{margin:8px 0}
+.bs-dispatch .tod{display:flex;gap:4px;margin:0 0 8px}
+.bs-dispatch .tod .t{flex:1;min-width:0;border:2px solid #16130f;border-radius:5px;background:#fff;color:#16130f;font:700 11px Oswald,sans-serif;letter-spacing:.08em;padding:4px 0;cursor:pointer}
+.bs-dispatch .tod .t.on{background:#f2c200}
 .bs-dispatch .go{font-size:22px;padding:8px}
 }
 .bs-keys{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;font:500 12px Oswald,sans-serif;padding:6px 10px;border-radius:8px;line-height:1.5}
@@ -146,7 +152,7 @@ export class UI {
       <div class="bs-sign bs-load" data-k="load"><div class="dia"></div><div class="txt"><div class="t">LOAD</div><div class="v" data-k="lh">0.00</div><div class="s" data-k="ls">m</div></div></div>
       <div class="bs-toast" data-k="toast"></div>
 
-      <div class="bs-keys">W/S gas &amp; brake · A/D steer · hold SPACE lower · J jake · C camera · R restart</div>
+      <div class="bs-keys">W/S gas &amp; brake · A/D steer · hold SPACE lower · J jake · C camera · T time · R restart</div>
       <div class="bs-ctrl bs-wheel" data-k="wheel"><div class="spoke"></div><div class="spoke v"></div></div>
       <div class="bs-ctrl bs-btn bs-cam" data-k="cam">CAM</div>
       <div class="bs-ctrl bs-btn bs-jake" data-k="jake">JAKE</div>
@@ -254,7 +260,16 @@ export class UI {
    * Dispatch sheet: pick an unlocked load, read the briefing, roll out. Rolling out
    * is also the first click into the framed game, which gives it keyboard focus.
    */
-  showDispatch(o: { loads: LoadDef[]; unlocked: number; selected: number; onRoll: (i: number) => void }) {
+  showDispatch(o: {
+    loads: LoadDef[];
+    unlocked: number;
+    selected: number;
+    times: { id: string; label: string }[];
+    time: string;
+    onTime: (id: string) => void;
+    onRoll: (i: number) => void;
+  }) {
+    let time = o.time;
     this.hideCard();
     let sel = Math.min(o.selected, o.unlocked);
     const el = document.createElement('div');
@@ -271,14 +286,21 @@ export class UI {
         </div><div class="colB">
         <div class="route">Highway 11 north into Saskatoon · 6 overpasses · real strike site: ${d.where}</div>
         <div class="picks">${o.loads.map((l, i) => `<button class="pick${i === sel ? ' on' : ''}" data-i="${i}" ${i > o.unlocked ? 'disabled' : ''}>${l.id}<span>${i > o.unlocked ? 'LOCKED' : l.date}</span></button>`).join('')}</div>
+        <div class="tod">${o.times.map((t) => `<button class="t${t.id === time ? ' on' : ''}" data-t="${t.id}">${t.label}</button>`).join('')}</div>
         <button class="go roll">${this.touchMode ? 'TAP' : 'CLICK'} TO ROLL OUT</button>
-        <div class="howto">${this.touchMode ? 'Wheel bottom-left · pedals bottom-right · hold LOWER LOAD to drop the deck 30 cm' : 'W / S gas and brake · A / D steer · hold SPACE to lower 30 cm · J jake · C camera · R restart'}</div>
+        <div class="howto">${this.touchMode ? 'Wheel bottom-left · pedals bottom-right · hold LOWER LOAD to drop the deck 30 cm' : 'W / S gas and brake · A / D steer · hold SPACE to lower 30 cm · J jake · C camera · T time of day · R restart'}</div>
         </div></div>
       </div>`;
       el.querySelectorAll<HTMLButtonElement>('.pick').forEach((b) => b.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         if (b.disabled) return;
         sel = +b.dataset.i!;
+        render();
+      }));
+      el.querySelectorAll<HTMLButtonElement>('.tod .t').forEach((b) => b.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        time = b.dataset.t!;
+        o.onTime(time);
         render();
       }));
       el.querySelector('.roll')!.addEventListener('pointerdown', (e) => { e.preventDefault(); roll(); });

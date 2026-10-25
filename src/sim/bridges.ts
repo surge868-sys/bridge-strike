@@ -81,7 +81,7 @@ export function buildOverpass(
   scene: THREE.Scene,
   world: RAPIER.World,
   def: OverpassDef,
-  maps: { concrete: THREE.Texture; steel: THREE.Texture },
+  maps: { concrete: THREE.Texture; steel: THREE.Texture; grass?: THREE.Texture },
 ): Overpass {
   const rail = def.kind === 'rail';
   // A road overpass carries a 12 m deck; a rail bridge is a narrow steel through-girder span.
@@ -198,13 +198,20 @@ export function buildOverpass(
   }
 
   // Abutment walls and grassed embankments carrying the crossing road.
-  const fillMat = new THREE.MeshStandardMaterial({ color: 0x8a8150, roughness: 1 });
+  let fillMap: THREE.Texture | null = null;
+  if (maps.grass) {
+    fillMap = maps.grass.clone();
+    fillMap.repeat.set(10, 2);
+    fillMap.needsUpdate = true;
+  }
+  const fillMat = new THREE.MeshStandardMaterial({ color: fillMap ? 0xd8dcc8 : 0x8a8150, roughness: 1, map: fillMap });
   for (const s of [-1, 1]) {
     addBox(1.2, deckTop + 1.5, HALF_Z * 2 + 2, s * (ABUT_X + 0.6), deckTop / 2 - 0.75, def.z, pierMat);
     const len = 70;
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(len, 1, HALF_Z * 2 + 8), fillMat);
+    // Deep enough that the sloped box reads as a solid berm down to the ground.
+    const ramp = new THREE.Mesh(new THREE.BoxGeometry(len, 9, HALF_Z * 2 + 8), fillMat);
     const slope = Math.atan2(deckTop + 1, len);
-    ramp.geometry.translate(len / 2, -0.5, 0);
+    ramp.geometry.translate(len / 2, -4.5, 0);
     ramp.position.set(s * (ABUT_X + 1.2), deckTop, def.z);
     ramp.rotation.z = -slope; // far end down; Euler XYZ applies this before the y flip
     if (s < 0) ramp.rotation.y = Math.PI;

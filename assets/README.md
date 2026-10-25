@@ -30,3 +30,21 @@ Overpass textures (`public/textures/`, 1024 px webp; 2K originals in `assets/raw
 `concrete.webp` (job 01a17149-fbee-7043-b592-dd284498a049) and `rail-steel.webp`
 (job 01a17149-fc67-7ea2-a911-f8652c122299), both `fal-ai/nano-banana-pro`, prompted as seamless
 tiles. Normal and roughness maps are derived in code in M1.
+
+### M3 scenery and ground (`scripts/assets/m3-prompts.json`)
+
+Eight `fal-ai/nano-banana-pro` 2K images: four seamless ground tiles (asphalt, gravel,
+grass, wheat stubble) and four cutouts on white (single tree, shelterbelt row, farmyard,
+Saskatoon skyline). `python3 -I scripts/assets/process-m3.py` turns the raw PNGs in
+`assets/raw/m3/` into `public/textures/*.webp`:
+
+- tiles resized to 768 px (gravel 512), webp q66;
+- cutouts keyed to alpha by distance from the backdrop (per row, interpolated between
+  the left and right margins, so a studio gradient keys as cleanly as flat white; the
+  skyline uses the flat top-corner colour so its haze fades out softly), white
+  un-premultiplied from the edges, trimmed and resized.
+
+Normal maps for every tile are derived at load time from luminance with a wrapping
+Sobel filter (`normalFromTexture` in `src/sim/world.ts`), so they cost no bytes.
+The grain bins are procedural instanced cylinders; everything else in the countryside
+is placed from a fixed seed in `src/sim/scenery.ts`.

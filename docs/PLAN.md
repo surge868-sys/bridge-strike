@@ -124,3 +124,33 @@ Because downloads are blocked, M0 can only do the concept sheets until the hosts
 - Route: six overpasses ~230 m apart (Hwy 16 at Circle Dr, 108th St, CPKC rail, McKercher Dr, 51st St, CN rail at Idylwyld) with the approved per-lane clearances, then delivery at the Saskatoon city limits. Rail crossings are steel through-girder spans.
 - Dispatch sheet (date, heights, briefing, unlocked loads), LOAD DELIVERED card with run stats, strike card naming the bridge (rail bridges get their own bill), ROLLED IT! card. Unlocks persist per viewer in localStorage.
 - Changes found in testing: anti-roll bars now scale with body mass and are damped (a lightly loaded trailer rocked itself into strikes); the grain bin is slimmed to 3.2 m so every load stays inside one 3.7 m lane.
+
+## M3 outcome (Oct 25)
+
+- **Ground**: one seamless terrain mesh out to ±3.2 km (dense by the road, geometric
+  spacing toward the horizon). A field shader tiles quarter-mile cells into stubble,
+  pasture and dark worked fallow, each with its own tint and row direction, grassy
+  headlands and ditches, two-scale sampling against tiling, and Sobel-derived normal
+  maps. Asphalt, gravel and median use the generated tiles; lane paint is a worn canvas
+  overlay. Physics is unchanged (2 km heightfield; the route lives inside it).
+- **Scenery**: about a thousand instanced shelterbelt cards along field lines and the
+  right-of-way, single trees as crossed cards, 18 farmyards (camera-facing billboards
+  with north and west shelterbelts and rows of procedural grain bins), lone bin sites on
+  the horizon, solid grassed embankments at every overpass, and the Saskatoon skyline
+  painted past the fog with a per-preset haze tint. Alpha-tested foliage casts shadows
+  through `customDepthMaterial`.
+- **Post**: MSAA half-float target → UnrealBloom → grade (lift, gain, saturation,
+  vignette in linear HDR) → OutputPass (ACES, sRGB). Falls back to a direct render
+  without WebGL2.
+- **Time of day**: golden hour (default), midday and dusk. T cycles them, the dispatch
+  sheet has a picker, and the choice is remembered. Each preset sets sun, sky, fog,
+  hemisphere light and exposure, and rebuilds the PMREM environment. Dusk turns on the
+  headlights (a following spot and emissive lenses that bloom).
+- **Cockpit camera**: C cycles chase → cockpit → drone. The generated cab glass is opaque,
+  so the "cockpit" view sits just ahead of the windscreen, 0.45 m above the hood on the
+  driver's side, locked to the cab so it pitches and rolls with the tractor.
+- **Budget**: about 0.95 MB of new textures; single-file build 14.7 MB (limit 16 MB).
+- **Not done / known**: there's no cab interior (opaque generated glass). Farmyards are
+  billboards, so they turn to face you. On phones the pixel ratio is capped at 1.75 to
+  pay for the post stack, and frame rate on real phones hasn't been measured (CI runs
+  swiftshader).

@@ -1,0 +1,39 @@
+{
+  "model": "fal-ai/nano-banana-pro",
+  "resolution": "2K",
+  "note": "request ids listed in submission order; raw PNGs in assets/raw/m3 (gitignored); processed by scripts/assets/process-m3.py",
+  "assets": {
+    "asphalt": {
+      "request_id": "01a172f7-e38a-7673-9c30-565a453c081d",
+      "prompt": "Seamless tileable texture, flat orthographic top-down photo, even overcast lighting with no shadows and no vignette: weathered North American highway asphalt, medium grey, fine aggregate with scattered lighter stones, faint oil staining, a few thin sealed crack lines. No lane markings, no paint, no objects, no perspective. Uniform density across the frame so it tiles without visible seams."
+    },
+    "gravel": {
+      "request_id": "01a172f7-e3c8-7fd0-8893-f0b12936c348",
+      "prompt": "Seamless tileable texture, flat orthographic top-down photo, even overcast lighting with no shadows and no vignette: compacted prairie highway gravel shoulder, crushed limestone and brown-grey pebbles 5 to 20 mm, a little dust and a few dry grass blades. No objects, no perspective. Uniform density so it tiles without visible seams."
+    },
+    "grass": {
+      "request_id": "01a172f7-e3c8-7803-a1a1-1981a69602b9",
+      "prompt": "Seamless tileable texture, flat orthographic top-down photo, even soft lighting with no shadows and no vignette: late-summer Saskatchewan prairie roadside grass, mix of golden dry grass and muted green blades with small patches of brown soil, a few yellow wildflower dots. No objects, no perspective. Uniform density so it tiles without visible seams."
+    },
+    "stubble": {
+      "request_id": "01a172f7-e3c1-7131-a6fb-dec9384dd9a1",
+      "prompt": "Seamless tileable texture, flat orthographic top-down photo, even soft lighting with no shadows and no vignette: harvested Saskatchewan wheat field stubble, pale golden straw stalks cut short in faint parallel seeding rows running vertically, light straw litter over dark brown soil. No objects, no perspective. Uniform density so it tiles without visible seams."
+    },
+    "tree": {
+      "request_id": "01a172f7-e3cc-7a51-a398-1d2e0259e8b6",
+      "prompt": "Photograph of a single tall mature prairie shelterbelt tree, a green ash or poplar with a full rounded leafy crown and a short dark trunk, late summer foliage, side view, the whole tree in frame from the ground line to the top with margin, isolated on a perfectly flat pure white studio background with no ground, no shadow, no grass. Soft even daylight. No text."
+    },
+    "shelterbelt": {
+      "request_id": "01a172f7-e3cf-7ef3-b4f3-51128c2a34b6",
+      "prompt": "Photograph of a dense prairie farm shelterbelt row segment: caragana shrubs and young poplars planted in a straight line, about 6 metres tall, irregular leafy top edge, dark green late summer foliage with some yellowing, side view, isolated on a perfectly flat pure white studio background with no ground, no shadow, no grass. Soft even daylight. No text."
+    },
+    "skyline": {
+      "request_id": "01a172f7-e3c5-79f0-95af-efadbde9e7bd",
+      "prompt": "Distant panoramic skyline of downtown Saskatoon, Saskatchewan seen from a highway about 10 km south across flat prairie at golden hour: a modest cluster of mid-rise office and apartment towers, the stone chateau-style hotel with a copper roof near the river, a steel truss bridge, a grain elevator off to one side, power lines. Buildings only, warm hazy light on their faces, isolated on a perfectly flat pure white background with no sky, no ground and no foreground. Wide horizontal strip, buildings fill the lower half. No text, no logos."
+    },
+    "farmyard": {
+      "request_id": "01a172f7-e3cd-7cf0-a28e-f98726727883",
+      "prompt": "Photograph of a small Saskatchewan farmyard seen from a distance at eye level: a red gambrel-roof barn, a white two-storey farmhouse, a steel quonset hut, a row of four corrugated galvanized grain bins with an auger, a few trees behind. Isolated on a perfectly flat pure white background with no sky, no shadow and no ground beyond a thin strip under the buildings. Soft warm daylight. No text, no logos, no vehicles."
+    }
+  }
+}

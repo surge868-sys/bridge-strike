@@ -128,6 +128,12 @@ try {
     s = await page.evaluate(() => window.__simStep(1.5));
     await page.keyboard.up('KeyD');
     check('dispatch: ROLL OUT starts the run; W and D drive the rig', visible && rolled && s.speedKmh > 5 && s.tractor.x > x0, `dispatch shown ${visible}, rolled ${rolled}, speed ${s.speedKmh.toFixed(1)} km/h, D moved x +${(s.tractor.x - x0).toFixed(2)}`);
+    const cams = [];
+    for (let k = 0; k < 3; k++) { await page.keyboard.press('KeyC'); cams.push((await page.evaluate(() => window.__sim())).camMode); }
+    await page.keyboard.press('KeyT');
+    const tod = (await page.evaluate(() => window.__sim())).timeOfDay;
+    await page.evaluate(() => window.__simDebug.setTime('golden'));
+    check('C cycles chase > cockpit > drone; T changes time of day', cams.join() === 'cockpit,drone,chase' && tod === 'midday', `cams ${cams.join(',')}, T -> ${tod}`);
     check('no page errors (dispatch/keyboard)', errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();
   }
@@ -137,6 +143,18 @@ try {
     const { page, ctx, errors } = await openSim(browser, DESKTOP);
     await page.evaluate(() => window.__simStep(2));
     await shot(page, 'desktop-chase-start');
+    await page.evaluate(() => window.__simDebug.setCam('cockpit'));
+    await shot(page, 'desktop-cockpit-start');
+    // time of day: each preset applies, rebuilds the environment and renders
+    const times = [];
+    for (const t of ['midday', 'dusk', 'golden']) {
+      await page.evaluate((t) => window.__simDebug.setTime(t), t);
+      if (t !== 'golden') await shot(page, `desktop-cockpit-${t}`, 0.1);
+      times.push((await page.evaluate(() => window.__sim())).timeOfDay);
+    }
+    const st = await page.evaluate(() => window.__sim());
+    check('post stack on; time of day presets switch', st.post && times.join() === 'midday,dusk,golden', `post ${st.post}, times ${times.join(',')}`);
+    await page.evaluate(() => window.__simDebug.setCam('chase'));
     await page.evaluate(() => window.__simDebug.reset({ z: 300, x: 13.55 }));
     await page.evaluate(() => window.__simStep(2));
     await shot(page, 'desktop-chase-rail-approach');
@@ -167,6 +185,9 @@ try {
     await page.evaluate(() => window.__simDebug.reset({ z: 520 }));
     await page.evaluate(() => window.__simStep(2));
     await shot(page, `${name}-chase`);
+    await page.evaluate(() => window.__simDebug.setCam('cockpit'));
+    await shot(page, `${name}-cockpit`);
+    await page.evaluate(() => window.__simDebug.setCam('chase'));
     if (name === 'phone-portrait') {
       // Drive with real multi-touch (CDP touch events): hold GAS, drag the wheel right
       // with a second finger, then hold LOWER LOAD.

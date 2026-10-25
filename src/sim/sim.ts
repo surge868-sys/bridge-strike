@@ -7,6 +7,9 @@ import { buildOverpass, Overpass, ROUTE, START_Z, DELIVERY_Z } from './bridges';
 import { Rig, RigControls, TUNE } from './rig';
 import { LOADS, LOWER_BY, LoadDef } from './loads';
 import { UI } from './ui';
+import { buildScenery } from './scenery';
+import { createPost } from './post';
+import { TIMES, timeById, TimeOfDay } from './timeofday';
 
 export interface SimOptions {
   container: HTMLElement;
@@ -14,12 +17,17 @@ export interface SimOptions {
 }
 
 type Phase = 'dispatch' | 'drive' | 'strike' | 'rolled' | 'delivered';
-type CamMode = 'chase' | 'drone';
+type CamMode = 'chase' | 'cockpit' | 'drone';
+const CAMS: CamMode[] = ['chase', 'cockpit', 'drone'];
+// Driver-side hood view in tractor space: just ahead of the windscreen (the generated
+// cab glass is opaque), 0.45 m above the long hood, which stays in frame.
+const COCKPIT_EYE = new THREE.Vector3(-0.35, 2.6, -2.8);
 
 const START = { x: LANES[1].center, z: START_Z };
 const TRAILER_REAR = 7.8; // trailer rear in trailer space (+z)
 const TRACTOR_FRONT = 4.4;
 const PROGRESS_KEY = 'bridge-strike:delivered';
+const TIME_KEY = 'bridge-strike:time';
 
 // Unlocks are a per-viewer convenience; storage can be missing or throw.
 const readProgress = () => {
@@ -27,6 +35,12 @@ const readProgress = () => {
 };
 const saveProgress = (n: number) => {
   try { localStorage.setItem(PROGRESS_KEY, String(n)); } catch { /* ignore */ }
+};
+const readTime = (): TimeOfDay => {
+  try { return timeById((localStorage.getItem(TIME_KEY) ?? 'golden') as TimeOfDay).id; } catch { return 'golden'; }
+};
+const saveTime = (t: TimeOfDay) => {
+  try { localStorage.setItem(TIME_KEY, t); } catch { /* ignore */ }
 };
 
 declare global {
@@ -45,7 +59,9 @@ export async function startSim(opts: SimOptions) {
   if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // Phones get a slightly lower ceiling: the post stack runs at full resolution.
+  const coarse = opts.forceTouch || matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.75 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.3;
@@ -58,14 +74,23 @@ export async function startSim(opts: SimOptions) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 1, 0.3, 4000);
 
-  const [, , tractor, trailer, wheel, concrete, steel] = await Promise.all([
+  const tx = (n: string) => loadTexture(`textures/${n}.webp`);
+  const [, , tractor, trailer, wheel, concrete, steel, asphalt, gravel, grass, stubble, tree, shelterbelt, farmyard, skyline] = await Promise.all([
     initPhysics(),
     loadFonts(),
     loadModel('tractor'),
     loadModel('trailer'),
     loadModel('wheel'),
-    loadTexture('textures/concrete.webp'),
-    loadTexture('textures/rail-steel.webp'),
+    tx('concrete'),
+    tx('rail-steel'),
+    tx('asphalt'),
+    tx('gravel'),
+    tx('grass'),
+    tx('stubble'),
+    tx('tree'),
+    tx('shelterbelt'),
+    tx('farmyard'),
+    tx('skyline'),
   ]);
   const loadModels = new Map<string, THREE.Group>();
   const getLoad = async (def: LoadDef) => {
@@ -74,21 +99,58 @@ export async function startSim(opts: SimOptions) {
   };
 
   const world = createWorld();
-  const env = buildWorld(scene, world);
-  const overpasses: Overpass[] = ROUTE.map((def) => buildOverpass(scene, world, def, { concrete, steel }));
+  const overpassZ = ROUTE.map((d) => d.z);
+  const env = buildWorld(scene, world, { asphalt, gravel, grass, stubble }, overpassZ);
+  const scenery = buildScenery(scene, { tree, shelterbelt, farmyard, skyline }, overpassZ);
+  const overpasses: Overpass[] = ROUTE.map((def) => buildOverpass(scene, world, def, { concrete, steel, grass }));
   buildCityLimits(scene, DELIVERY_Z);
+  const post = createPost(renderer, scene, camera);
 
-  // Image-based lighting from the sky so chrome and paint have something to reflect.
-  {
-    const pmrem = new THREE.PMREMGenerator(renderer);
+  // Headlights: a spot that follows the tractor, plus emissive lenses for the bloom.
+  const headlight = new THREE.SpotLight(0xfff1d6, 0, 160, 0.42, 0.55, 1.2);
+  headlight.castShadow = false;
+  scene.add(headlight, headlight.target);
+  const lensMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xfff3dc, emissiveIntensity: 0 });
+  const lensGeo = new THREE.CircleGeometry(0.13, 16).rotateY(Math.PI);
+  const attachLenses = () => {
+    for (const x of [-0.92, 0.92]) {
+      const lens = new THREE.Mesh(lensGeo, lensMat);
+      lens.position.set(x, 1.05, -4.36);
+      rig.tractorGroup.add(lens);
+    }
+  };
+
+  // Image-based lighting from the sky so chrome and paint have something to reflect;
+  // rebuilt whenever the time of day changes.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envGround = new THREE.MeshBasicMaterial({ color: 0x6f6446 });
+  const rebuildEnvironment = () => {
     const envScene = new THREE.Scene();
     envScene.add(env.sky.clone());
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(1500, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x6f6446 }));
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(1500, 32).rotateX(-Math.PI / 2), envGround);
     ground.position.y = -2;
     envScene.add(ground);
+    const old = scene.environment;
     scene.environment = pmrem.fromScene(envScene, 0.02).texture;
-    scene.environmentIntensity = 0.8;
-  }
+    old?.dispose();
+  };
+  let timeOfDay: TimeOfDay = readTime();
+  const setTime = (id: TimeOfDay) => {
+    const p = timeById(id);
+    timeOfDay = p.id;
+    env.apply(p);
+    scenery.apply(p);
+    post?.apply(p);
+    renderer.toneMappingExposure = p.exposure;
+    scene.environmentIntensity = p.envIntensity;
+    envGround.color.set(p.envGround);
+    headlight.intensity = 260 * p.headlights;
+    lensMat.emissiveIntensity = 6 * p.headlights;
+    rebuildEnvironment();
+    saveTime(p.id);
+  };
+  setTime(timeOfDay);
+  const cycleTime = () => setTime(TIMES[(TIMES.findIndex((t) => t.id === timeOfDay) + 1) % TIMES.length].id);
 
   const ui = new UI(container, opts.forceTouch);
   const queue = new RAPIER.EventQueue(true);
@@ -115,6 +177,7 @@ export async function startSim(opts: SimOptions) {
     rig?.destroy();
     const def = LOADS[loadIndex];
     rig = new Rig(world, scene, { tractor: tractor.clone(), trailer: trailer.clone(), wheel, load: await getLoad(def) }, def, { x: o.x ?? START.x, z: o.z ?? START.z });
+    attachLenses();
     phase = o.phase ?? 'drive';
     simTime = driveTime = 0;
     timeScale = 1;
@@ -132,12 +195,20 @@ export async function startSim(opts: SimOptions) {
       loads: LOADS,
       unlocked: Math.min(readProgress(), LOADS.length - 1),
       selected,
+      times: TIMES.map((t) => ({ id: t.id, label: t.label })),
+      time: timeOfDay,
+      onTime: (t) => setTime(t as TimeOfDay),
       onRoll: async (i) => {
         if (i !== loadIndex || phase !== 'dispatch') await reset({ load: i, phase: 'dispatch' });
         phase = 'drive';
         focusGame();
       },
     });
+  };
+
+  const cycleCam = () => {
+    camMode = CAMS[(CAMS.indexOf(camMode) + 1) % CAMS.length];
+    snapCamera = true;
   };
 
   // --- input
@@ -148,13 +219,14 @@ export async function startSim(opts: SimOptions) {
   window.addEventListener('keydown', (e) => {
     keys.add(e.code);
     if (phase === 'dispatch' && ['Enter', 'Space', 'KeyW', 'ArrowUp'].includes(e.code)) ui.rollOut();
-    if (e.code === 'KeyC') camMode = camMode === 'chase' ? 'drone' : 'chase';
+    if (e.code === 'KeyC') cycleCam();
+    if (e.code === 'KeyT') { cycleTime(); ui.toast(timeById(timeOfDay).label); }
     if (e.code === 'KeyR' && phase !== 'dispatch') void reset();
     if (e.code === 'Space') e.preventDefault();
   });
   window.addEventListener('keyup', (e) => keys.delete(e.code));
   window.addEventListener('blur', () => keys.clear());
-  ui.onCam = () => (camMode = camMode === 'chase' ? 'drone' : 'chase');
+  ui.onCam = () => cycleCam();
   ui.onRestart = () => void reset();
   ui.onDispatch = (next) => { void reset({ load: next ?? loadIndex, phase: 'dispatch' }).then(() => openDispatch(next ?? loadIndex)); };
 
@@ -237,6 +309,17 @@ export async function startSim(opts: SimOptions) {
     fwd.normalize();
     const base = new THREE.Vector3(t.x, t.y, t.z);
     let want: THREE.Vector3, look: THREE.Vector3;
+    if (camMode === 'cockpit') {
+      // Locked to the cab: the view pitches and rolls with the tractor.
+      camera.position.copy(COCKPIT_EYE).applyQuaternion(quat).add(base);
+      camera.quaternion.copy(quat).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.06));
+      if (camera.near !== 0.12) { camera.near = 0.12; camera.updateProjectionMatrix(); }
+      camPos.copy(camera.position);
+      camLook.copy(base).addScaledVector(fwd, 20);
+      snapCamera = false;
+      return;
+    }
+    if (camera.near !== 0.3) { camera.near = 0.3; camera.updateProjectionMatrix(); }
     if (camMode === 'chase') {
       want = base.clone().addScaledVector(fwd, -27).add(new THREE.Vector3(0, 8.5, 0));
       look = base.clone().addScaledVector(fwd, 14).add(new THREE.Vector3(0, 2.6, 0));
@@ -256,6 +339,7 @@ export async function startSim(opts: SimOptions) {
   const resize = () => {
     const w = container.clientWidth || window.innerWidth, h = container.clientHeight || window.innerHeight;
     renderer.setSize(w, h, false);
+    post?.setSize(w, h);
     camera.aspect = w / h;
     camera.fov = w / h < 0.8 ? 68 : 55; // portrait phones need more vertical view
     camera.updateProjectionMatrix();
@@ -272,6 +356,12 @@ export async function startSim(opts: SimOptions) {
     rig.sync();
     updateCamera(dt);
     env.update(camera, rig.tractorGroup.position);
+    scenery.update(camera);
+    if (headlight.intensity > 0) {
+      const tq = rig.tractorGroup.quaternion;
+      headlight.position.set(0, 1.3, -4.6).applyQuaternion(tq).add(rig.tractorGroup.position);
+      headlight.target.position.set(0, 0, -40).applyQuaternion(tq).add(rig.tractorGroup.position);
+    }
     const frontZ = rig.tractorBody.translation().z - TRACTOR_FRONT;
     const op = nextOverpass();
     ui.update({
@@ -289,7 +379,7 @@ export async function startSim(opts: SimOptions) {
           }
         : { title: 'DELIVERY', name: 'SASKATOON CITY LIMITS', distance: frontZ - DELIVERY_Z, lanes: [], currentLane: null },
     });
-    renderer.render(scene, camera);
+    if (post) post.render(); else renderer.render(scene, camera);
   };
 
   // --- loop
@@ -331,7 +421,7 @@ export async function startSim(opts: SimOptions) {
     const op = nextOverpass();
     return {
       heading: Math.atan2(fx, -fz),
-      phase, simTime, driveTime, camMode,
+      phase, simTime, driveTime, camMode, timeOfDay, post: !!post,
       loadIndex, load: rig.load.name, loadTarget: rig.load.top,
       speedKmh: rig.speed() * 3.6,
       tractor: { x: tt.x, y: tt.y, z: tt.z, up: rig.tractor.up().y, contacts: rig.tractor.inContact() },
@@ -361,7 +451,7 @@ export async function startSim(opts: SimOptions) {
   };
   window.__simDebug = {
     rig: () => rig, world, scene, camera, renderer, TUNE, overpasses, LOADS,
-    reset, setCam: (m: CamMode) => (camMode = m),
+    reset, setCam: (m: CamMode) => { camMode = m; snapCamera = true; }, setTime,
     clearProgress: () => saveProgress(0),
   };
 
