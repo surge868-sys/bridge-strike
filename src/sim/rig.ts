@@ -193,7 +193,8 @@ export class Rig {
 
   /** Rear bogie, tail and hydraulic rams: procedural so the rams can animate. */
   private buildBogie() {
-    const steel = new THREE.MeshStandardMaterial({ color: 0x3a3a3c, roughness: 0.6, metalness: 0.35 });
+    const steel = new THREE.MeshStandardMaterial({ color: 0x2c2c2e, roughness: 0.6, metalness: 0.35 });
+    const plank = new THREE.MeshStandardMaterial({ color: 0x8a7a64, roughness: 0.85, metalness: 0 });
     const chrome = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.12, metalness: 1 });
     const yellow = new THREE.MeshStandardMaterial({ color: 0xe0a800, roughness: 0.45, metalness: 0.2 });
     const red = new THREE.MeshStandardMaterial({ color: 0x550000, emissive: 0xff2200, emissiveIntensity: 1.2 });
@@ -205,7 +206,7 @@ export class Rig {
       return mesh;
     };
     for (const s of [-1, 1]) box(0.22, 0.34, 5.2, s * 0.95, 0.98, 5.15, steel); // side beams
-    box(2.56, 0.08, 5.2, 0, 1.18, 5.15, steel); // platform
+    box(2.56, 0.08, 5.2, 0, 1.18, 5.15, plank); // platform, weathered planks like the well deck
     box(2.56, 0.5, 0.22, 0, 0.93, 2.72, steel); // riser at the end of the well
     box(2.6, 0.3, 0.2, 0, 0.92, 7.72, steel); // tail beam
     for (const s of [-1, 1]) {

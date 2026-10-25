@@ -49,6 +49,7 @@ async function plateBot(page) {
 }
 
 async function shot(page, name, secs = 0.5) {
+  await page.evaluate(() => document.querySelector('.bs-start')?.remove());
   await page.evaluate((s) => { for (let i = 0; i < 6; i++) window.__simFrame(s / 6); }, secs);
   const file = path.join(SHOTS, `${name}.png`);
   await page.screenshot({ path: file, timeout: 120000 });
@@ -97,6 +98,25 @@ try {
     });
     check('rollover: survives a hard swerve at 85 km/h', !s.rolled && s.minUp > 0.8, `min up ${s.minUp.toFixed(3)} (cos of max lean ${(Math.acos(Math.min(1, s.minUp)) * 57.3).toFixed(1)} deg), phase ${s.phase}`);
     check('no page errors (physics run)', errors.length === 0, errors.slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
+  // --- real keyboard: the start overlay has to be clicked before keys reach the game
+  {
+    const { page, ctx, errors } = await openSim(browser, DESKTOP);
+    await page.evaluate(() => window.__simStep(1));
+    const overlay = await page.isVisible('.bs-start');
+    await page.mouse.click(640, 400);
+    const gone = !(await page.isVisible('.bs-start'));
+    await page.keyboard.down('KeyW');
+    let s = await page.evaluate(() => window.__simStep(3));
+    await page.keyboard.up('KeyW');
+    await page.keyboard.down('KeyD');
+    const x0 = s.tractor.x;
+    s = await page.evaluate(() => window.__simStep(1.5));
+    await page.keyboard.up('KeyD');
+    check('keyboard: click to drive, then W and D drive the rig', overlay && gone && s.speedKmh > 5 && s.tractor.x > x0, `overlay ${overlay}->${!gone}, speed ${s.speedKmh.toFixed(1)} km/h, D moved x +${(s.tractor.x - x0).toFixed(2)}`);
+    check('no page errors (keyboard)', errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();
   }
 

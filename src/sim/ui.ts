@@ -67,6 +67,10 @@ const CSS = `
 .bs-toast.show{opacity:1}
 .bs-strip{position:absolute;left:0;right:0;bottom:0;background:#111;color:#fff;font:600 13px Oswald,sans-serif;padding:8px 12px;text-align:center;pointer-events:auto;z-index:5}
 .bs-strip b{color:#f2c200}
+.bs-start{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,14,8,.35);pointer-events:auto;cursor:pointer;z-index:4}
+.bs-start .box{background:#0b6b3a;color:#fff;border:4px solid #fff;outline:3px solid #0b6b3a;border-radius:14px;padding:14px 26px;text-align:center;max-width:88vw}
+.bs-start .big{font:44px/1 Anton,Impact,sans-serif;letter-spacing:.02em}
+.bs-start .small{font:500 14px/1.5 Oswald,sans-serif;margin-top:8px;opacity:.95}
 .bs-keys{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;font:500 12px Oswald,sans-serif;padding:6px 10px;border-radius:8px;line-height:1.5}
 @media (pointer:coarse){.bs-keys{display:none}}
 @media (max-width:560px){
@@ -94,6 +98,8 @@ export class UI {
   touch: TouchState = { steer: 0, gas: 0, brake: 0, lower: false, jake: false };
   onCam: () => void = () => {};
   onRestart: () => void = () => {};
+  onStart: () => void = () => {};
+  started = false;
   private els: Record<string, HTMLElement> = {};
   private card: HTMLDivElement | null = null;
   private toastTimer = 0;
@@ -113,6 +119,7 @@ export class UI {
       <div class="bs-sign bs-guide" data-k="guide"><div class="t" data-k="gt">NEXT OVERPASS</div><div class="n" data-k="gn"></div><div class="d" data-k="gd"></div><div class="bs-chips" data-k="chips"></div></div>
       <div class="bs-sign bs-load" data-k="load"><div class="dia"></div><div class="txt"><div class="t">LOAD</div><div class="v" data-k="lh">0.00</div><div class="s" data-k="ls">m</div></div></div>
       <div class="bs-toast" data-k="toast"></div>
+      <div class="bs-start" data-k="start"><div class="box"><div class="big" data-k="startbig">CLICK TO DRIVE</div><div class="small" data-k="startsmall">W / S gas and brake · A / D steer · hold SPACE to lower the load</div></div></div>
       <div class="bs-keys">W/S gas &amp; brake · A/D steer · hold SPACE lower · J jake · C camera · R restart</div>
       <div class="bs-ctrl bs-wheel" data-k="wheel"><div class="spoke"></div><div class="spoke v"></div></div>
       <div class="bs-ctrl bs-btn bs-cam" data-k="cam">CAM</div>
@@ -124,6 +131,13 @@ export class UI {
     if (forceTouch) this.root.querySelectorAll<HTMLElement>('.bs-ctrl').forEach((e) => (e.style.display = 'flex'));
     this.bindTouch();
     this.inAppBrowserGuard();
+    // The game runs inside a frame: keys only arrive once it has focus, so the
+    // first click or tap starts the session and focuses it.
+    if (forceTouch || matchMedia('(pointer: coarse)').matches) {
+      this.els.startbig.textContent = 'TAP TO DRIVE';
+      this.els.startsmall.textContent = 'Wheel bottom-left · pedals bottom-right · hold LOWER LOAD to drop the deck 30 cm';
+    }
+    this.els.start.addEventListener('pointerdown', (e) => { e.preventDefault(); this.start(); });
   }
 
   private bindTouch() {
@@ -212,6 +226,13 @@ export class UI {
         return `<div class="bs-chip ${cls}${s.next!.currentLane === l.name ? ' cur' : ''}">${l.name} ${l.clearance.toFixed(2)} · ${word}</div>`;
       })
       .join('');
+  }
+
+  start() {
+    if (this.started) return;
+    this.started = true;
+    this.els.start.remove();
+    this.onStart();
   }
 
   toast(text: string, ms = 1800) {

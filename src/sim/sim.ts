@@ -42,7 +42,8 @@ export async function startSim(opts: SimOptions) {
   renderer.toneMappingExposure = 1.3;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none';
+  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;outline:none';
+  renderer.domElement.tabIndex = 0;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -112,8 +113,11 @@ export async function startSim(opts: SimOptions) {
   // --- input
   const keys = new Set<string>();
   let keySteer = 0;
+  const focusGame = () => { try { window.focus(); renderer.domElement.focus({ preventScroll: true }); } catch { /* ignore */ } };
+  container.addEventListener('pointerdown', focusGame);
   window.addEventListener('keydown', (e) => {
     keys.add(e.code);
+    ui.start();
     if (e.code === 'KeyC') camMode = camMode === 'chase' ? 'drone' : 'chase';
     if (e.code === 'KeyR') void reset();
     if (e.code === 'Space') e.preventDefault();
@@ -122,6 +126,7 @@ export async function startSim(opts: SimOptions) {
   window.addEventListener('blur', () => keys.clear());
   ui.onCam = () => (camMode = camMode === 'chase' ? 'drone' : 'chase');
   ui.onRestart = () => void reset();
+  ui.onStart = focusGame;
 
   const readControls = (dt: number): RigControls => {
     const left = keys.has('KeyA') || keys.has('ArrowLeft');
