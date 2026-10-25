@@ -1,0 +1,116 @@
+{
+  "tractor": {
+    "name": "tractor",
+    "src": "assets/raw/models/tractor-hunyuan.glb",
+    "out": "public/models/tractor.glb",
+    "bytes": 1617096,
+    "trianglesIn": 149718,
+    "trianglesOut": 59998,
+    "budget": 60000,
+    "scale": 7.9794,
+    "size": [
+      3.104,
+      3.832,
+      8.75
+    ],
+    "min": [
+      -1.552,
+      0.267,
+      -4.375
+    ],
+    "max": [
+      1.552,
+      4.1,
+      4.375
+    ],
+    "removedTriangles": 41217,
+    "parts": {},
+    "wheels": [
+      {
+        "name": "wheel_FL",
+        "x": -1.03,
+        "y": 0.56,
+        "z": -3.5,
+        "r": 0.59
+      },
+      {
+        "name": "wheel_FR",
+        "x": 1.03,
+        "y": 0.56,
+        "z": -3.5,
+        "r": 0.59
+      },
+      {
+        "name": "wheel_D1L",
+        "x": -0.93,
+        "y": 0.56,
+        "z": 2.195,
+        "r": 0.59
+      },
+      {
+        "name": "wheel_D1R",
+        "x": 0.93,
+        "y": 0.56,
+        "z": 2.195,
+        "r": 0.59
+      },
+      {
+        "name": "wheel_D2L",
+        "x": -0.93,
+        "y": 0.56,
+        "z": 3.6,
+        "r": 0.59
+      },
+      {
+        "name": "wheel_D2R",
+        "x": 0.93,
+        "y": 0.56,
+        "z": 3.6,
+        "r": 0.59
+      }
+    ],
+    "textures": [
+      {
+        "name": "texture_pbr_20250901_normal",
+        "size": [
+          2048,
+          2048
+        ],
+        "mime": "image/webp"
+      },
+      {
+        "name": "texture_pbr_20250901",
+        "size": [
+          2048,
+          2048
+        ],
+        "mime": "image/webp"
+      },
+      {
+        "name": "texture_pbr_20250901_metallic-texture_pbr_20250901_roughness",
+        "size": [
+          2048,
+          2048
+        ],
+        "mime": "image/webp"
+      }
+    ],
+    "checks": {
+      "x": {
+        "expected": 3.05,
+        "actual": 3.104,
+        "ok": true
+      },
+      "y": {
+        "expected": 4.1,
+        "actual": 4.1,
+        "ok": true
+      },
+      "wheelbase": {
+        "expected": 6.4,
+        "actual": 6.397,
+        "ok": true
+      }
+    }
+  }
+}

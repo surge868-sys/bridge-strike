@@ -1,0 +1,77 @@
+{
+  "note": "Import settings per generated model. Coordinates are metres in the final frame: forward is -z, up is +y, origin centred in x/z with the ground at y=0. Wheel axles run along x.",
+  "assets": {
+    "tractor": {
+      "src": "assets/raw/models/tractor-hunyuan.glb",
+      "generator": "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d (request 01a1712b-5603-7da1-bb63-9b49837c257d)",
+      "yaw": 180,
+      "axisScale": [
+        0.9,
+        1,
+        1
+      ],
+      "measure": {
+        "axis": "z",
+        "metres": 8.75
+      },
+      "triangles": 60000,
+      "texture": 2048,
+      "wheels": [
+        {
+          "name": "wheel_FL",
+          "x": -1.03,
+          "y": 0.56,
+          "z": -3.5,
+          "r": 0.59,
+          "width": 0.42
+        },
+        {
+          "name": "wheel_FR",
+          "x": 1.03,
+          "y": 0.56,
+          "z": -3.5,
+          "r": 0.59,
+          "width": 0.42
+        },
+        {
+          "name": "wheel_D1L",
+          "x": -0.93,
+          "y": 0.56,
+          "z": 2.195,
+          "r": 0.59,
+          "width": 0.82
+        },
+        {
+          "name": "wheel_D1R",
+          "x": 0.93,
+          "y": 0.56,
+          "z": 2.195,
+          "r": 0.59,
+          "width": 0.82
+        },
+        {
+          "name": "wheel_D2L",
+          "x": -0.93,
+          "y": 0.56,
+          "z": 3.6,
+          "r": 0.59,
+          "width": 0.82
+        },
+        {
+          "name": "wheel_D2R",
+          "x": 0.93,
+          "y": 0.56,
+          "z": 3.6,
+          "r": 0.59,
+          "width": 0.82
+        }
+      ],
+      "expect": {
+        "x": 3.05,
+        "y": 4.1,
+        "wheelbase": 6.4
+      },
+      "notes": "x includes west-coast mirrors (2.59 m body + mirrors). Hunyuan output was ~11% too wide, corrected with axisScale. Wheel hubs measured with scripts/assets/probe-axles.mjs (tire r ~0.56 m); strip radius 0.59 m catches the tread."
+    }
+  }
+}
