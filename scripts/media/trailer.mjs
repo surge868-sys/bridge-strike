@@ -64,7 +64,7 @@ if (!process.argv.includes('--og-only')) {
 
   const out = path.join(root, 'media/trailer.mp4');
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(FPS), '-i', path.join(frames, 'f%05d.jpg'),
-    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', '-preset', 'slow', '-movflags', '+faststart', out]);
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '30', '-preset', 'slow', '-vf', 'scale=960:-2', '-movflags', '+faststart', out]);
   console.log(`${out}: ${n} frames, ${(fs.statSync(out).size / 1048576).toFixed(1)} MB`);
 }
 

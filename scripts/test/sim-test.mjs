@@ -251,30 +251,26 @@ try {
     await shot(page, `${name}-cockpit`);
     await page.evaluate(() => window.__simDebug.setCam('chase'));
     if (name === 'phone-portrait') {
-      // Drive with real multi-touch (CDP touch events): hold GAS, drag the wheel right
-      // with a second finger, then hold LOWER LOAD.
+      // Drive with real multi-touch (CDP touch events): hold GAS, hold the right arrow
+      // with a second finger (no dragging anywhere), then hold LOWER LOAD.
       const cdp = await ctx.newCDPSession(page);
       const centre = (sel) => page.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width }; }, sel);
       const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
       await page.evaluate(() => window.__simDebug.reset({ z: 600 }));
       await page.evaluate(() => window.__simStep(1));
-      const gas = await centre('.bs-gas'), wh = await centre('.bs-wheel'), low = await centre('.bs-lowerbtn');
+      const gas = await centre('.bs-gas'), right = await centre('.bs-right'), low = await centre('.bs-lowerbtn');
       await touch('touchStart', [{ x: gas.x, y: gas.y, id: 1 }]);
       let s = await page.evaluate(() => window.__simStep(4));
       const sp = s.speedKmh;
       const g = { x: gas.x, y: gas.y, id: 1 };
-      await touch('touchStart', [g, { x: wh.x, y: wh.y - wh.w * 0.4, id: 2 }]);
-      for (let k = 1; k <= 6; k++) {
-        const a = -Math.PI / 2 + (k / 6) * (Math.PI / 2);
-        await touch('touchMove', [g, { x: wh.x + Math.cos(a) * wh.w * 0.4, y: wh.y + Math.sin(a) * wh.w * 0.4, id: 2 }]);
-      }
       const x0 = s.tractor.x;
+      await touch('touchStart', [g, { x: right.x, y: right.y, id: 2 }]);
       s = await page.evaluate(() => window.__simStep(1.5));
       await touch('touchEnd', []);
       await touch('touchStart', [{ x: low.x, y: low.y, id: 3 }]);
       s = await page.evaluate(() => window.__simStep(1.5));
       await touch('touchEnd', []);
-      check('touch: gas, wheel and LOWER LOAD drive the rig', sp > 5 && s.tractor.x - x0 > 0.3 && s.lower > 0.99, `speed ${sp.toFixed(1)} km/h after 4 s, wheel right moved x +${(s.tractor.x - x0).toFixed(2)} m, lower ${s.lower.toFixed(2)}`);
+      check('touch: gas, right arrow and LOWER LOAD drive the rig', sp > 5 && s.tractor.x - x0 > 0.3 && s.lower > 0.99, `speed ${sp.toFixed(1)} km/h after 4 s, right arrow moved x +${(s.tractor.x - x0).toFixed(2)} m, lower ${s.lower.toFixed(2)}`);
     }
     check(`no page errors (${name})`, errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();

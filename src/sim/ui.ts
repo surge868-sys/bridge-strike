@@ -4,7 +4,8 @@ import type { LoadDef } from './loads';
 import { logoCanvas } from './brand';
 
 export interface TouchState {
-  steer: number;
+  left: boolean;
+  right: boolean;
   gas: number;
   brake: number;
   lower: boolean;
@@ -43,9 +44,11 @@ const CSS = `
 .bs-load .s{font:700 10px Oswald,sans-serif}
 .bs-load.down .dia{background:#ffd84d}
 .bs-ctrl{pointer-events:auto;position:absolute;touch-action:none}
-.bs-wheel{left:max(14px,env(safe-area-inset-left));bottom:max(14px,env(safe-area-inset-bottom));width:150px;height:150px;border-radius:50%;border:12px solid rgba(20,20,20,.75);background:radial-gradient(circle,rgba(255,255,255,.08) 0 30%,transparent 31%)}
-.bs-wheel .spoke{position:absolute;left:50%;top:50%;width:100%;height:12px;margin:-6px 0 0 -50%;background:rgba(20,20,20,.75);border-radius:6px}
-.bs-wheel .spoke.v{width:12px;height:50%;margin:0 0 0 -6px;top:50%}
+.bs-arrow{bottom:max(14px,env(safe-area-inset-bottom));width:76px;height:100px;border-radius:14px;background:rgba(20,20,20,.72);border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center}
+.bs-arrow svg{width:46px;height:46px;fill:#fff}
+.bs-arrow.on{background:rgba(242,194,0,.92)}.bs-arrow.on svg{fill:#111}
+.bs-left{left:max(14px,env(safe-area-inset-left))}
+.bs-right{left:calc(max(14px,env(safe-area-inset-left)) + 88px)}
 .bs-pedal{bottom:max(14px,env(safe-area-inset-bottom));width:70px;height:120px;border-radius:12px;background:rgba(20,20,20,.72);color:#fff;display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;font:700 13px Oswald,sans-serif;letter-spacing:.08em;border:2px solid rgba(255,255,255,.35)}
 .bs-gas{right:max(14px,env(safe-area-inset-right));height:140px}
 .bs-brk{right:calc(max(14px,env(safe-area-inset-right)) + 82px)}
@@ -127,10 +130,10 @@ const CSS = `
 .bs-guide{left:82px;right:82px;transform:none;min-width:0;padding:4px 6px}
 .bs-guide .t{font-size:10px}.bs-guide .n{font-size:19px}.bs-guide .d{font-size:14px}
 .bs-chips{flex-direction:column;gap:3px}.bs-chip{font-size:11px;min-width:0;padding:1px 4px}
-.bs-wheel{width:124px;height:124px;border-width:10px}
+.bs-arrow{width:66px;height:90px}.bs-right{left:calc(max(14px,env(safe-area-inset-left)) + 76px)}
 .bs-pedal{width:58px;height:100px}.bs-gas{height:116px}.bs-brk{right:calc(max(14px,env(safe-area-inset-right)) + 68px)}
 .bs-lowerbtn{width:126px;height:56px;font-size:19px;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 128px)}
-.bs-cam,.bs-jake{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 138px);width:56px}.bs-jake{left:calc(max(14px,env(safe-area-inset-left)) + 62px)}
+.bs-cam,.bs-jake{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 104px);width:56px}.bs-jake{left:calc(max(14px,env(safe-area-inset-left)) + 62px)}
 .bs-card h1{font-size:44px}
 }
 @media (pointer:fine){.bs-ctrl{display:none}}
@@ -143,7 +146,7 @@ export const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-CA');
 
 export class UI {
   root: HTMLDivElement;
-  touch: TouchState = { steer: 0, gas: 0, brake: 0, lower: false, jake: false };
+  touch: TouchState = { left: false, right: false, gas: 0, brake: 0, lower: false, jake: false };
   onCam: () => void = () => {};
   onRestart: () => void = () => {};
   onDispatch: (next?: number) => void = () => {};
@@ -242,7 +245,8 @@ export class UI {
       <div class="bs-mute" data-k="mute">SOUND</div>
 
       <div class="bs-keys">W/S gas &amp; brake · A/D steer · hold SPACE lower · J jake · C camera · T time · M mute · R restart</div>
-      <div class="bs-ctrl bs-wheel" data-k="wheel"><div class="spoke"></div><div class="spoke v"></div></div>
+      <div class="bs-ctrl bs-arrow bs-left" data-k="left"><svg viewBox="0 0 24 24"><path d="M15.5 3 6 12l9.5 9 2.5-2.4L11 12l7-6.6z"/></svg></div>
+      <div class="bs-ctrl bs-arrow bs-right" data-k="right"><svg viewBox="0 0 24 24"><path d="M8.5 3 18 12l-9.5 9L6 18.6 13 12 6 5.4z"/></svg></div>
       <div class="bs-ctrl bs-btn bs-cam" data-k="cam">CAM</div>
       <div class="bs-ctrl bs-btn bs-jake" data-k="jake">JAKE</div>
       <div class="bs-ctrl bs-btn bs-lowerbtn" data-k="lower">LOWER LOAD</div>
@@ -256,7 +260,7 @@ export class UI {
   }
 
   private bindTouch() {
-    const hold = (key: 'gas' | 'brk' | 'lower' | 'jake', on: (v: boolean) => void) => {
+    const hold = (key: 'gas' | 'brk' | 'lower' | 'left' | 'right', on: (v: boolean) => void) => {
       const el = this.els[key];
       const set = (v: boolean) => { on(v); el.classList.toggle('on', v); };
       el.addEventListener('pointerdown', (e) => { capture(el, e); set(true); e.preventDefault(); });
@@ -266,6 +270,10 @@ export class UI {
     hold('gas', (v) => (this.touch.gas = v ? 1 : 0));
     hold('brk', (v) => (this.touch.brake = v ? 1 : 0));
     hold('lower', (v) => (this.touch.lower = v));
+    // Steering is two hold buttons, not a drag: in-app browsers (Facebook,
+    // Instagram) read a swipe as "close this page".
+    hold('left', (v) => (this.touch.left = v));
+    hold('right', (v) => (this.touch.right = v));
     this.els.jake.addEventListener('pointerdown', (e) => {
       this.touch.jake = !this.touch.jake;
       this.els.jake.classList.toggle('on', this.touch.jake);
@@ -274,50 +282,23 @@ export class UI {
     this.els.cam.addEventListener('pointerdown', (e) => { this.onCam(); e.preventDefault(); });
     this.els.replay.addEventListener('pointerdown', (e) => { this.onSkipReplay(); e.preventDefault(); });
     this.els.mute.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); this.onMute(); });
-
-    // Steering wheel: drag around the centre; 135 degrees each way is full lock.
-    const wheel = this.els.wheel;
-    let startAngle = 0, base = 0, active = -1;
-    const angleOf = (e: PointerEvent) => {
-      const r = wheel.getBoundingClientRect();
-      return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2));
-    };
-    wheel.addEventListener('pointerdown', (e) => {
-      active = e.pointerId;
-      capture(wheel, e);
-      startAngle = angleOf(e);
-      base = this.touch.steer * 2.36;
-      e.preventDefault();
-    });
-    wheel.addEventListener('pointermove', (e) => {
-      if (e.pointerId !== active) return;
-      let d = angleOf(e) - startAngle;
-      d = Math.atan2(Math.sin(d), Math.cos(d));
-      const a = Math.max(-2.36, Math.min(2.36, base + d));
-      this.touch.steer = a / 2.36;
-      wheel.style.transform = `rotate(${a}rad)`;
-    });
-    const release = () => {
-      active = -1;
-      this.touch.steer = 0;
-      wheel.style.transition = 'transform .25s';
-      wheel.style.transform = 'rotate(0rad)';
-      setTimeout(() => (wheel.style.transition = ''), 260);
-    };
-    wheel.addEventListener('pointerup', release);
-    wheel.addEventListener('pointercancel', release);
   }
 
-  /** Facebook / Instagram in-app browsers close the page on horizontal edge swipes. */
+  /**
+   * No page gestures on touch screens: a finger sliding off a button must not scroll,
+   * pull to refresh, or (in Facebook / Instagram in-app browsers) swipe the page closed.
+   * The share picture still takes a long press.
+   */
   private inAppBrowserGuard() {
     const ua = navigator.userAgent || '';
-    if (!/FBAN|FBAV|FB_IAB|Instagram/i.test(ua)) return;
+    const inApp = /FBAN|FBAV|FB_IAB|FB4A|FBIOS|Instagram|Messenger/i.test(ua);
+    document.addEventListener('touchmove', (e) => { if (!(e.target as Element)?.closest?.('.bs-share')) e.preventDefault(); }, { passive: false });
+    if (!inApp) return;
     const block = (e: TouchEvent) => {
       const t = e.touches[0];
       if (t && (t.clientX < 30 || t.clientX > window.innerWidth - 30)) e.preventDefault();
     };
     document.addEventListener('touchstart', block, { passive: false });
-    document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
     const strip = document.createElement('div');
     strip.className = 'bs-strip';
     strip.innerHTML = 'For the full game, tap <b>⋯</b> and choose <b>Open in browser</b>.';

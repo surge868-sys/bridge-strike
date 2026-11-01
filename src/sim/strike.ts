@@ -157,6 +157,11 @@ export class StrikeFx {
     });
   }
 
+  /** Dust sprites are unlit, so they take a tint matched to the light (dark at dusk). */
+  setDust(color: number) {
+    for (const s of this.puffs) (s.material as THREE.SpriteMaterial).color.set(color);
+  }
+
   clear() {
     this.active = false;
     this.chunks.visible = this.sparks.visible = false;

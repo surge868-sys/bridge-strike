@@ -179,6 +179,7 @@ export async function startSim(opts: SimOptions) {
     timeOfDay = p.id;
     env.apply(p);
     scenery.apply(p);
+    fx.setDust(p.dust);
     post?.apply(p);
     renderer.toneMappingExposure = p.exposure;
     scene.environmentIntensity = p.envIntensity;
@@ -342,16 +343,17 @@ export async function startSim(opts: SimOptions) {
   ui.onDispatch = (next) => { void reset({ load: next ?? loadIndex, phase: 'dispatch' }).then(() => openDispatch(next ?? loadIndex)); };
 
   const readControls = (dt: number): RigControls => {
-    const left = keys.has('KeyA') || keys.has('ArrowLeft');
-    const right = keys.has('KeyD') || keys.has('ArrowRight');
+    const t = ui.touch;
+    // Keys and the touch arrows both ramp the steering in, so a tap nudges and a hold turns.
+    const left = keys.has('KeyA') || keys.has('ArrowLeft') || t.left;
+    const right = keys.has('KeyD') || keys.has('ArrowRight') || t.right;
     const target = (right ? 1 : 0) - (left ? 1 : 0);
     const rate = target === 0 ? 4 : 2.5;
     keySteer += THREE.MathUtils.clamp(target - keySteer, -rate * dt, rate * dt);
-    const t = ui.touch;
     const c: RigControls = {
       throttle: Math.max(keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0, t.gas),
       brake: Math.max(keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0, t.brake),
-      steer: THREE.MathUtils.clamp(keySteer + t.steer, -1, 1),
+      steer: keySteer,
       lower: keys.has('Space') || t.lower,
       jake: keys.has('KeyJ') || t.jake,
     };

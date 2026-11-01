@@ -25,6 +25,7 @@ export interface LightPreset {
   bloom: number;
   skylineHaze: number; // 0..1 mix toward the fog colour
   headlights: number; // 0 off, 1 full
+  dust: number; // strike dust tint
 }
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).normalize();
@@ -53,6 +54,7 @@ export const TIMES: LightPreset[] = [
     bloom: 0.32,
     skylineHaze: 0.42,
     headlights: 0,
+    dust: 0xb9a78f,
   },
   {
     id: 'midday',
@@ -76,6 +78,7 @@ export const TIMES: LightPreset[] = [
     bloom: 0.2,
     skylineHaze: 0.5,
     headlights: 0,
+    dust: 0xcfc8ba,
   },
   {
     id: 'dusk',
@@ -99,6 +102,7 @@ export const TIMES: LightPreset[] = [
     bloom: 0.55,
     skylineHaze: 0.3,
     headlights: 1,
+    dust: 0x5e5058,
   },
 ];
 

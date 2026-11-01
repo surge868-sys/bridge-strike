@@ -10,7 +10,7 @@ company, driver and newscast is made up.
 
 - **Desktop**: W / S gas and brake, A / D steer, hold SPACE to lower the deck 30 cm,
   J jake brake, C camera (chase / cockpit / drone), T time of day, M mute, R restart.
-- **Phone**: steering wheel bottom-left, pedals bottom-right, LOWER LOAD, CAM, JAKE.
+- **Phone**: hold the ◀ ▶ arrows to steer (no swiping, so it works inside the Facebook and Instagram browsers), pedals bottom-right, LOWER LOAD, CAM, JAKE.
 
 Read the yellow clearance plate over each lane: if your load fits, stay; if it fits
 lowered, hold LOWER; if it doesn't fit even lowered, change lanes.
