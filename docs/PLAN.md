@@ -194,3 +194,28 @@ Because downloads are blocked, M0 can only do the concept sheets until the hosts
 - **Damage ledger**: every strike's bill goes on a running city tab kept on the device
   (strikes per bridge, deliveries). The bill card shows the running tab and the
   dispatch sheet shows it once you've hit something.
+
+## M5 outcome (Nov 1)
+
+- **Logo**: the fal account ran out of credits, so the logo is a procedural stand-in
+  drawn in code (`src/sim/brand.ts`): a warning-yellow Anton wordmark with a black
+  outline and shadow, a cracked concrete beam jammed onto BRIDGE, and a highway arrow
+  for the leg of the R in STRIKE. It costs no bytes and draws crisp at any size.
+- **Title screen**: the logo and the pitch over an attract-mode orbit of the parked rig;
+  any key or tap opens dispatch (and unlocks audio).
+- **Share card**: SHARE on the strike and delivery cards builds a 1080x1350 image from
+  the impact frame of the replay (or the delivery), with the logo, result and stats.
+  Native share where the browser allows files; SAVE goes through the artifact
+  viewer's `downloads` capability inside claude.ai, and a plain download link on the
+  website; long-press works everywhere.
+- **Link preview**: `public/og.jpg` (1200x630) and Open Graph / Twitter metadata in
+  `src/app/layout.tsx`.
+- **Trailer**: `scripts/media/trailer.mjs` renders `media/trailer.mp4` frame by frame
+  through the test hooks (title, twin hoppers lowering through the first overpass,
+  cockpit, a dusk strike with both replays and the news chyron, back to the title).
+  Silent: browser audio isn't captured.
+- **Deploy**: `docs/DEPLOY.md`. This session's network policy blocks `api.vercel.com`, so
+  the import has to be done from vercel.com (about two minutes, no settings).
+- **Bug found and fixed**: switching loads could crash the game loop (frames rendered
+  during the new model's load touched the old rig's removed bodies). Regression test
+  added.
