@@ -69,6 +69,18 @@ const CSS = `
 .bs-replay .tag i{display:inline-block;width:14px;height:14px;border-radius:50%;background:#e23b2e;margin-right:10px;vertical-align:4px;animation:bsblink 1s steps(2) infinite}
 .bs-replay .skip{position:absolute;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);color:#fff;font:700 13px Oswald,sans-serif;letter-spacing:.14em;text-shadow:0 1px 3px #000}
 @keyframes bsblink{50%{opacity:0}}
+.bs-news{position:absolute;left:0;right:0;bottom:0;display:none;z-index:3;pointer-events:none;font-family:Oswald,sans-serif}
+.bs-news .row{display:flex;align-items:stretch;margin:0 max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left))}
+.bs-news .brk{background:#d22;color:#fff;font:26px/1 Anton,Impact,sans-serif;padding:8px 12px 6px;letter-spacing:.03em}
+.bs-news .hl{flex:1;background:#fff;color:#111;font:24px/1 Anton,Impact,sans-serif;padding:8px 12px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bs-news .show{background:#111;color:#f2c200;font:700 12px Oswald,sans-serif;letter-spacing:.14em;padding:4px 12px;display:inline-block;margin-left:max(12px,env(safe-area-inset-left))}
+.bs-news .tick{background:#0b2a4a;color:#fff;overflow:hidden;white-space:nowrap;font:600 15px/30px Oswald,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+.bs-news .tick span{display:inline-block;padding-left:100%;animation:bstick 22s linear infinite}
+@keyframes bstick{to{transform:translateX(-100%)}}
+.bs-mute{position:absolute;top:max(110px,calc(env(safe-area-inset-top) + 100px));left:max(10px,env(safe-area-inset-left));width:44px;height:36px;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;font:700 11px Oswald,sans-serif;letter-spacing:.06em;display:flex;align-items:center;justify-content:center;pointer-events:auto;cursor:pointer;z-index:2;user-select:none}
+@media (max-width:560px){.bs-mute{top:max(84px,calc(env(safe-area-inset-top) + 76px))}}
+.bs-dispatch .tab{font:700 12px Oswald,sans-serif;letter-spacing:.1em;color:#d22;margin:0 0 8px}
+.bs-card table tr.tab td{color:#d22;font-weight:700}
 .bs-toast{position:absolute;left:50%;top:32%;transform:translateX(-50%);background:#0b6b3a;color:#fff;border:3px solid #fff;border-radius:10px;padding:8px 18px;font:34px Anton,Impact,sans-serif;opacity:0;transition:opacity .3s}
 .bs-toast.show{opacity:1}
 .bs-strip{position:absolute;left:0;right:0;bottom:0;background:#111;color:#fff;font:600 13px Oswald,sans-serif;padding:8px 12px;text-align:center;pointer-events:auto;z-index:5}
@@ -112,7 +124,7 @@ const CSS = `
 // Capture can throw (no active pointer, some in-app webviews); controls must keep working.
 const capture = (el: HTMLElement, e: PointerEvent) => { try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ } };
 
-const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-CA');
+export const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString('en-CA');
 
 export class UI {
   root: HTMLDivElement;
@@ -121,6 +133,7 @@ export class UI {
   onRestart: () => void = () => {};
   onDispatch: (next?: number) => void = () => {};
   onSkipReplay: () => void = () => {};
+  onMute: () => void = () => {};
   touchMode = false;
   private dispatch: { el: HTMLDivElement; roll: () => void } | null = null;
   private els: Record<string, HTMLElement> = {};
@@ -142,9 +155,11 @@ export class UI {
       <div class="bs-sign bs-guide" data-k="guide"><div class="t" data-k="gt">NEXT OVERPASS</div><div class="n" data-k="gn"></div><div class="d" data-k="gd"></div><div class="bs-chips" data-k="chips"></div></div>
       <div class="bs-sign bs-load" data-k="load"><div class="dia"></div><div class="txt"><div class="t">LOAD</div><div class="v" data-k="lh">0.00</div><div class="s" data-k="ls">m</div></div></div>
       <div class="bs-toast" data-k="toast"></div>
-      <div class="bs-replay" data-k="replay"><div class="tag"><i></i>REPLAY</div><div class="skip">TAP TO SKIP</div></div>
+      <div class="bs-replay" data-k="replay"><div class="tag"><i></i><b data-k="replayLabel">REPLAY</b></div><div class="skip">TAP TO SKIP</div></div>
+      <div class="bs-news" data-k="news"><div class="show">BRIDGE WATCH · LIVE</div><div class="row"><div class="brk">BREAKING</div><div class="hl" data-k="newsHl"></div></div><div class="tick"><span data-k="newsTick"></span></div></div>
+      <div class="bs-mute" data-k="mute">SOUND</div>
 
-      <div class="bs-keys">W/S gas &amp; brake · A/D steer · hold SPACE lower · J jake · C camera · T time · R restart</div>
+      <div class="bs-keys">W/S gas &amp; brake · A/D steer · hold SPACE lower · J jake · C camera · T time · M mute · R restart</div>
       <div class="bs-ctrl bs-wheel" data-k="wheel"><div class="spoke"></div><div class="spoke v"></div></div>
       <div class="bs-ctrl bs-btn bs-cam" data-k="cam">CAM</div>
       <div class="bs-ctrl bs-btn bs-jake" data-k="jake">JAKE</div>
@@ -176,6 +191,7 @@ export class UI {
     });
     this.els.cam.addEventListener('pointerdown', (e) => { this.onCam(); e.preventDefault(); });
     this.els.replay.addEventListener('pointerdown', (e) => { this.onSkipReplay(); e.preventDefault(); });
+    this.els.mute.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); this.onMute(); });
 
     // Steering wheel: drag around the centre; 135 degrees each way is full lock.
     const wheel = this.els.wheel;
@@ -261,6 +277,7 @@ export class UI {
     time: string;
     onTime: (id: string) => void;
     onRoll: (i: number) => void;
+    tab?: string;
   }) {
     let time = o.time;
     this.hideCard();
@@ -276,6 +293,7 @@ export class UI {
         <div class="name">${d.name.toUpperCase()}</div>
         <div class="tall">${d.top.toFixed(2)} m<small>TALL</small></div>
         <p class="brief">${d.briefing}</p>
+        ${o.tab ? `<div class="tab">${o.tab}</div>` : ''}
         <button class="go roll">ROLL OUT</button>
         <button class="tod">☀ ${o.times.find((t) => t.id === time)?.label ?? ''} · CHANGE</button>
       </div>`;
@@ -319,7 +337,8 @@ export class UI {
     this.toastTimer = window.setTimeout(() => t.classList.remove('show'), ms);
   }
 
-  showStrike(info: { where: string; kind: 'concrete' | 'rail'; speedKmh: number; load: LoadDef }) {
+  /** Shows the bill and returns its total; `tab` is the running city tab before this strike. */
+  showStrike(info: { where: string; kind: 'concrete' | 'rail'; speedKmh: number; load: LoadDef; tab: { total: number; strikes: number } }) {
     const k = Math.max(0.4, info.speedKmh / 60);
     const rail = info.kind === 'rail';
     const rows: [string, number][] = rail
@@ -339,8 +358,30 @@ export class UI {
         ];
     const total = rows.reduce((a, [, v]) => a + v, 0);
     this.showCard('strike', 'BRIDGE STRIKE!', `${info.load.name} vs. ${info.where} at ${Math.round(info.speedKmh)} km/h. ${rail ? 'Repair bill:' : 'City of Saskatoon repair bill:'}`,
-      `<table>${rows.map(([n, v]) => `<tr><td>${n}</td><td>${fmt$(v)}</td></tr>`).join('')}<tr class="total"><td>TOTAL</td><td>${fmt$(total)}</td></tr></table>`,
+      `<table>${rows.map(([n, v]) => `<tr><td>${n}</td><td>${fmt$(v)}</td></tr>`).join('')}<tr class="total"><td>TOTAL</td><td>${fmt$(total)}</td></tr>`
+        + `<tr class="tab"><td>Running city tab · ${info.tab.strikes + 1} strike${info.tab.strikes ? 's' : ''}</td><td>${fmt$(info.tab.total + total)}</td></tr></table>`,
       [['TRY AGAIN', () => this.onRestart()], ['DISPATCH', () => this.onDispatch()]]);
+    return total;
+  }
+
+  setMuted(m: boolean) {
+    this.els.mute.textContent = m ? 'MUTED' : 'SOUND';
+    this.els.mute.style.opacity = m ? '0.6' : '1';
+  }
+
+  /** TV lower third shown over the replay. */
+  showNews(headline: string, ticker: string[]) {
+    this.els.newsHl.textContent = headline;
+    this.els.newsTick.textContent = ticker.join('   ◆   ');
+    this.els.news.style.display = 'block';
+  }
+
+  hideNews() {
+    this.els.news.style.display = 'none';
+  }
+
+  setReplayLabel(text: string) {
+    this.els.replayLabel.textContent = text;
   }
 
   showDelivered(o: { load: LoadDef; time: number; lowerings: number; topSpeed: number; next?: LoadDef; nextIndex: number }) {

@@ -92,10 +92,17 @@ try {
     end = await routeBot(page, { force: { lane: 'RIGHT', lower: true } });
     check(`negative bot: grain bin (5.20 m) fully lowered in the no-go lane (plates ${lanes}) still strikes CPKC`, end.phase === 'strike' && end.struck?.at === 'cpkc', `phase ${end.phase}, struck ${JSON.stringify(end.struck)}`);
     // strike sequence: live impact, slow-motion replay, then the bill
-    const stages = [];
-    for (const secs of [0.3, 1.0, 5.0]) stages.push((await page.evaluate((x) => window.__simStep(x), secs)).strikeStage);
+    const stages = [], labels = [];
+    const tab0 = await page.evaluate(() => window.__simDebug.ledger());
+    for (const secs of [0.3, 1.0, 4.0, 3.0]) {
+      stages.push((await page.evaluate((x) => window.__simStep(x), secs)).strikeStage);
+      labels.push((await page.isVisible('.bs-news')) ? await page.textContent('.bs-replay .tag') : '-');
+    }
     const card = await page.isVisible('.bs-card');
-    check('strike plays live, then a replay, then the bill card', stages.join() === 'live,replay,done' && card, `stages ${stages.join(' > ')}, card ${card}`);
+    const tab1 = await page.evaluate(() => window.__simDebug.ledger());
+    const tabRow = card ? await page.textContent('.bs-card tr.tab') : '';
+    check('strike plays live, side replay, chopper replay with the news chyron, then the bill', stages.join() === 'live,replay,replay,done' && labels[1] === 'REPLAY' && labels[2] === 'CHOPPER CAM' && card, `stages ${stages.join(' > ')}, news/labels ${labels.join(' > ')}, card ${card}`);
+    check('damage ledger adds the bill to the running city tab', tab1.strikes === tab0.strikes + 1 && tab1.total > tab0.total && /Running city tab/.test(tabRow), `strikes ${tab0.strikes} -> ${tab1.strikes}, tab $${Math.round(tab0.total)} -> $${Math.round(tab1.total)}, row "${tabRow}"`);
 
     // rollover: hard in-lane swerves at speed
     // Load 1 held lowered clears the first two overpasses in either lane, so nothing else ends the run.
@@ -137,6 +144,15 @@ try {
     s = await page.evaluate(() => window.__simStep(1.5));
     await page.keyboard.up('KeyD');
     check('dispatch: ROLL OUT starts the run; W and D drive the rig', visible && rolled && s.speedKmh > 5 && s.tractor.x > x0, `dispatch shown ${visible}, rolled ${rolled}, speed ${s.speedKmh.toFixed(1)} km/h, D moved x +${(s.tractor.x - x0).toFixed(2)}`);
+    await page.keyboard.down('KeyW');
+    await page.evaluate(() => window.__simStep(3));
+    await page.evaluate(() => window.__simFrame(0.1));
+    const au = await page.evaluate(() => window.__simDebug.audio());
+    await page.keyboard.up('KeyW');
+    await page.keyboard.press('KeyM');
+    const au2 = await page.evaluate(() => window.__simDebug.audio());
+    await page.keyboard.press('KeyM');
+    check('engine audio runs and follows the rig; M mutes', au.state === 'running' && au.rpm > 900 && au.gear >= 5 && au2.muted && !au.muted, `audio ${au.state}, ${Math.round(au.rpm)} rpm in gear ${au.gear}, M -> muted ${au2.muted}`);
     const cams = [];
     for (let k = 0; k < 3; k++) { await page.keyboard.press('KeyC'); cams.push((await page.evaluate(() => window.__sim())).camMode); }
     await page.keyboard.press('KeyT');
@@ -184,7 +200,9 @@ try {
     await shot(page, 'desktop-strike-impact', 0.05);
     await page.evaluate(() => window.__simStep(1.6));
     await shot(page, 'desktop-strike-replay', 0.05);
-    await page.evaluate(() => window.__simStep(5));
+    await page.evaluate(() => window.__simStep(3.2));
+    await shot(page, 'desktop-strike-chopper', 0.05);
+    await page.evaluate(() => window.__simStep(4));
     await shot(page, 'desktop-strike-rail-card');
     await page.evaluate(() => window.__simDebug.reset({ load: 1, z: -400 }));
     await page.evaluate(() => window.__simStep(2));

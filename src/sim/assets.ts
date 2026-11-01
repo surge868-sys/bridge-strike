@@ -20,8 +20,11 @@ function b64ToBytes(b64: string) {
 }
 
 export async function loadBytes(path: string): Promise<ArrayBuffer> {
-  const embedded = typeof window !== 'undefined' ? window.__BS_ASSETS?.[path] : undefined;
+  const bundle = typeof window !== 'undefined' ? window.__BS_ASSETS : undefined;
+  const embedded = bundle?.[path];
   if (embedded) return b64ToBytes(embedded).buffer as ArrayBuffer;
+  // The single-file build embeds everything it has; don't go looking for the rest.
+  if (bundle) throw new Error(`asset ${path}: not in this build`);
   const res = await fetch('/' + path);
   if (!res.ok) throw new Error(`asset ${path}: ${res.status}`);
   return res.arrayBuffer();

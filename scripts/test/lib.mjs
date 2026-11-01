@@ -12,7 +12,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 export async function launch() {
   return chromium.launch({
     executablePath: fs.existsSync('/opt/pw-browsers/chromium') ? undefined : undefined,
-    args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader', '--ignore-gpu-blocklist'],
+    args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'],
   });
 }
 

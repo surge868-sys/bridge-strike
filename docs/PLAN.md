@@ -172,3 +172,25 @@ Because downloads are blocked, M0 can only do the concept sheets until the hosts
   the load shoves back and tips on the deck; camera shake; a procedural crunch, thump
   and (rail) clang; then a slow-motion replay of the last 1.9 s from a low side angle,
   REPLAY tag, tap or Enter to skip, then the bill card.
+
+## M4 outcome (Nov 1)
+
+- **Engine audio** (procedural, `src/sim/audio.ts`): firing-frequency saw + square through
+  a throttle-opened lowpass and soft clipper, low rumble, speed-tracked tire noise; a
+  ten-speed box (rpm climbs 1100 -> 1800 per gear); the jake brake is a chopped bright
+  saw that holds revs up; air-brake hiss when a held brake is released. M (or the
+  SOUND button) mutes everything; the choice is remembered.
+- **Music**: an adaptive three-layer player (`theme`, `cruise`, `tension`): tension
+  crossfades in when your lane won't fit the next overpass within ~260 m. No tracks
+  were supplied, so `docs/MUSIC.md` has three Suno prompts and
+  `scripts/assets/import-music.sh` trims/encodes them (40 s, mono 48 kbps, ~240 KB
+  each) into `public/music/`. Verified with synthetic tones; ships silent until real
+  tracks are imported.
+- **Crash replay**: two angles, a low slow-motion side shot then a high orbiting
+  "CHOPPER CAM", both from the recorded pose history with effects scrubbed in time.
+- **News chyron**: a TV lower third during the replay ("BRIDGE WATCH · LIVE", BREAKING
+  headline that knows the load, bridge, speed and how many times that bridge has been
+  hit) and a scrolling ticker of running jokes and the city tab.
+- **Damage ledger**: every strike's bill goes on a running city tab kept on the device
+  (strikes per bridge, deliveries). The bill card shows the running tab and the
+  dispatch sheet shows it once you've hit something.

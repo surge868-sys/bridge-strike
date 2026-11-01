@@ -5,10 +5,10 @@ import { loadModel, loadTexture, loadFonts } from './assets';
 import { buildWorld, buildCityLimits, LANES } from './world';
 import { buildOverpass, destroyOverpass, routeFor, Overpass, ROUTE, START_Z, DELIVERY_Z } from './bridges';
 import { StrikeFx } from './strike';
-import { unlockAudio, playStrike } from './audio';
+import { unlockAudio, playStrike, Engine, Music, setMuted, isMuted, audioState } from './audio';
 import { Rig, RigControls, TUNE } from './rig';
 import { LOADS, LOWER_BY, LoadDef } from './loads';
-import { UI } from './ui';
+import { UI, fmt$ } from './ui';
 import { buildScenery } from './scenery';
 import { createPost } from './post';
 import { TIMES, timeById, TimeOfDay } from './timeofday';
@@ -22,9 +22,10 @@ type Phase = 'dispatch' | 'drive' | 'strike' | 'rolled' | 'delivered';
 type CamMode = 'chase' | 'cockpit' | 'drone';
 // After a strike: the impact plays live for LIVE_SECS, then the last moments replay in slow motion.
 const LIVE_SECS = 0.8;
-const REPLAY_FROM = 1.1; // seconds before the impact
+const REPLAY_FROM = 0.95; // seconds before the impact
 const REPLAY_TO = 0.75; // seconds after
-const REPLAY_RATE = 0.4;
+// Two angles: low beside the bridge in slow motion, then the news helicopter.
+const REPLAYS = [{ label: 'REPLAY', rate: 0.42 }, { label: 'CHOPPER CAM', rate: 0.8 }];
 const HISTORY_SECS = 3;
 const CAMS: CamMode[] = ['chase', 'cockpit', 'drone'];
 // Driver-side hood view in tractor space: just ahead of the windscreen (the generated
@@ -37,6 +38,22 @@ const TRACTOR_FRONT = 4.4;
 const ROLL_KMH = 60; // runs start already moving
 const PROGRESS_KEY = 'bridge-strike:delivered';
 const TIME_KEY = 'bridge-strike:time';
+const LEDGER_KEY = 'bridge-strike:ledger';
+const MUTE_KEY = 'bridge-strike:muted';
+
+// Damage ledger: the running city tab across every run on this device.
+interface Ledger { total: number; strikes: number; deliveries: number; byBridge: Record<string, number> }
+const readLedger = (): Ledger => {
+  try {
+    const l = JSON.parse(localStorage.getItem(LEDGER_KEY) ?? '');
+    if (l && typeof l.total === 'number') return { total: l.total, strikes: l.strikes | 0, deliveries: l.deliveries | 0, byBridge: l.byBridge ?? {} };
+  } catch { /* fresh ledger */ }
+  return { total: 0, strikes: 0, deliveries: 0, byBridge: {} };
+};
+const saveLedger = (l: Ledger) => {
+  try { localStorage.setItem(LEDGER_KEY, JSON.stringify(l)); } catch { /* ignore */ }
+};
+const ordinal = (n: number) => ['FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH', 'SIXTH', 'SEVENTH', 'EIGHTH', 'NINTH', 'TENTH'][n - 1] ?? `${n}TH`;
 
 // Unlocks are a per-viewer convenience; storage can be missing or throw.
 const readProgress = () => {
@@ -193,7 +210,18 @@ export async function startSim(opts: SimOptions) {
   // Strike sequence and a short pose history for the replay.
   type Pose = { t: number; a: number[]; b: number[]; lower: number };
   const history: Pose[] = [];
-  let seq: null | { t0: number; stage: 'live' | 'replay' | 'done'; live: number; replayT: number; impact: THREE.Vector3; side: number } = null;
+  let seq: null | { t0: number; stage: 'live' | 'replay' | 'done'; live: number; replayT: number; seg: number; impact: THREE.Vector3; side: number } = null;
+  const ledger = readLedger();
+  let sessionStrikes = 0;
+  const engine = new Engine();
+  const music = new Music();
+  try { setMuted(localStorage.getItem(MUTE_KEY) === '1'); } catch { /* ignore */ }
+  ui.setMuted(isMuted());
+  const toggleMute = () => {
+    setMuted(!isMuted());
+    ui.setMuted(isMuted());
+    try { localStorage.setItem(MUTE_KEY, isMuted() ? '1' : '0'); } catch { /* ignore */ }
+  };
   let shake = 0;
   const record = () => {
     const pose = (body: RAPIER.RigidBody) => { const t = body.translation(), q = body.rotation(); return [t.x, t.y, t.z, q.x, q.y, q.z, q.w]; };
@@ -227,6 +255,7 @@ export async function startSim(opts: SimOptions) {
     history.length = 0;
     fx.clear();
     ui.setReplay(false);
+    ui.hideNews();
     // Overpasses already behind the start point count as cleared (tests start mid-route).
     cleared = overpasses.filter((op) => op.def.z - op.halfZ > (o.z ?? START.z) + TRAILER_REAR + 9.7).length;
     wasLowering = false;
@@ -243,6 +272,7 @@ export async function startSim(opts: SimOptions) {
       times: TIMES.map((t) => ({ id: t.id, label: t.label })),
       time: timeOfDay,
       onTime: (t) => setTime(t as TimeOfDay),
+      tab: ledger.strikes ? `CITY TAB ${fmt$(ledger.total)} · ${ledger.strikes} STRIKE${ledger.strikes > 1 ? 'S' : ''}` : undefined,
       onRoll: async (i) => {
         if (i !== loadIndex || phase !== 'dispatch') await reset({ load: i, phase: 'dispatch' });
         phase = 'drive';
@@ -269,6 +299,7 @@ export async function startSim(opts: SimOptions) {
     if (phase === 'dispatch' && ['Enter', 'Space', 'KeyW', 'ArrowUp'].includes(e.code)) ui.rollOut();
     if (phase === 'dispatch' && ['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD'].includes(e.code)) ui.dispatchMove?.(e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 1);
     if (e.code === 'KeyC') cycleCam();
+    if (e.code === 'KeyM') toggleMute();
     if (e.code === 'KeyT') { cycleTime(); ui.toast(timeById(timeOfDay).label); }
     if (e.code === 'KeyR' && phase !== 'dispatch') void reset({ rolling: true });
     if (seq?.stage === 'replay' && ['Enter', 'Space', 'Escape'].includes(e.code)) endReplay();
@@ -277,6 +308,7 @@ export async function startSim(opts: SimOptions) {
   window.addEventListener('keyup', (e) => keys.delete(e.code));
   window.addEventListener('blur', () => keys.clear());
   ui.onCam = () => cycleCam();
+  ui.onMute = () => { unlockAudio(); toggleMute(); };
   ui.onRestart = () => void reset({ rolling: true });
   ui.onDispatch = (next) => { void reset({ load: next ?? loadIndex, phase: 'dispatch' }).then(() => openDispatch(next ?? loadIndex)); };
 
@@ -325,8 +357,9 @@ export async function startSim(opts: SimOptions) {
       const q = rig.trailerBody.rotation();
       const heading = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w)).setY(0).normalize();
       fx.start(impact, speedBefore / 3.6, heading, op.def.kind, 1 + Math.floor(simTime * 1000) % 9973);
-      seq = { t0: simTime, stage: 'live', live: 0, replayT: 0, impact, side: impact.x > 11.7 ? 1 : -1 };
+      seq = { t0: simTime, stage: 'live', live: 0, replayT: 0, seg: 0, impact, side: impact.x > 11.7 ? 1 : -1 };
       rig.knock = 0;
+      sessionStrikes++;
       shake = Math.min(1, 0.4 + speedBefore / 70);
       playStrike(op.def.kind, speedBefore);
     });
@@ -352,6 +385,8 @@ export async function startSim(opts: SimOptions) {
       if (phase === 'drive' && cleared === overpasses.length && rear < DELIVERY_Z) {
         phase = 'delivered';
         if (loadIndex + 1 > readProgress()) saveProgress(loadIndex + 1);
+        ledger.deliveries++;
+        saveLedger(ledger);
         ui.showDelivered({ load: rig.load, time: driveTime, lowerings, topSpeed, next: LOADS[loadIndex + 1], nextIndex: loadIndex + 1 });
       }
     }
@@ -362,9 +397,16 @@ export async function startSim(opts: SimOptions) {
   const camLook = new THREE.Vector3();
   const updateCamera = (dt: number) => {
     if (seq?.stage === 'replay') {
-      // Low and off to the side of the impact, easing in over the replay.
       const k = (seq.replayT - (seq.t0 - REPLAY_FROM)) / (REPLAY_FROM + REPLAY_TO);
       const p = seq.impact;
+      if (seq.seg === 1) {
+        // News helicopter: high, wide, slowly orbiting.
+        const a = 0.5 + 0.35 * k;
+        camera.position.set(p.x + seq.side * Math.cos(a) * 34, 26, p.z + Math.sin(a) * 34);
+        camera.lookAt(p.x - seq.side * 2, p.y - 3, p.z - 2);
+        snapCamera = true;
+        return;
+      }
       // Close side angle between the outer pier and the abutment, on the impact.
       camera.position.set(p.x + seq.side * (12 - 3 * k), 2.2 + 0.6 * k, p.z + 9 - 3 * k);
       camera.lookAt(p.x, p.y - 0.6, p.z + 1);
@@ -438,6 +480,28 @@ export async function startSim(opts: SimOptions) {
     }
   };
 
+  // Engine follows the rig; music is cruise on the open road, tension when the lane
+  // you're in won't fit the next overpass, and the theme everywhere else.
+  const updateAudio = (dt: number) => {
+    const c = rig.controls;
+    const replaying = seq?.stage === 'replay';
+    engine.update({ speedKmh: rig.speed() * 3.6, throttle: phase === 'drive' ? c.throttle : 0, brake: c.brake, jake: phase === 'drive' && c.jake, running: !replaying }, dt);
+    if (phase === 'drive') {
+      const op = nextOverpass();
+      const frontZ = rig.tractorBody.translation().z - TRACTOR_FRONT;
+      const dist = op ? frontZ - (op.def.z + op.halfZ) : Infinity;
+      const x = rig.trailerBody.translation().x;
+      const lane = op?.spans.find((sp) => x >= sp.min && x <= sp.max);
+      const top = rig.load.top - rig.lower * LOWER_BY;
+      const danger = op && lane && dist < 260 && lane.clearance < top + 0.02 ? 1 : 0;
+      music.mix({ cruise: 1 - 0.75 * danger, tension: danger });
+    } else if (phase === 'strike' && seq?.stage !== 'done') {
+      music.mix({ theme: 0.25 });
+    } else {
+      music.mix({ theme: 1 });
+    }
+  };
+
   const render = (dt: number) => {
     if (seq?.stage === 'replay') {
       rig.knock = seq.replayT >= seq.t0 ? seq.replayT - seq.t0 : -1;
@@ -449,6 +513,7 @@ export async function startSim(opts: SimOptions) {
       if (seq) fx.update(simTime - seq.t0);
     }
     updateCamera(dt);
+    updateAudio(dt);
     env.update(camera, rig.tractorGroup.position);
     scenery.update(camera);
     if (headlight.intensity > 0) {
@@ -484,9 +549,37 @@ export async function startSim(opts: SimOptions) {
     if (!seq || seq.stage === 'done') return;
     seq.stage = 'done';
     ui.setReplay(false);
+    ui.hideNews();
     snapCamera = true;
     const op = overpasses.find((o) => o.def.id === struck!.at)!;
-    ui.showStrike({ where: op.def.name, kind: op.def.kind, speedKmh: struck!.speedKmh, load: rig.load });
+    const bill = ui.showStrike({ where: op.def.name, kind: op.def.kind, speedKmh: struck!.speedKmh, load: rig.load, tab: ledger });
+    ledger.total += bill;
+    ledger.strikes++;
+    ledger.byBridge[op.def.id] = (ledger.byBridge[op.def.id] ?? 0) + 1;
+    saveLedger(ledger);
+  };
+  const startNews = () => {
+    const op = overpasses.find((o) => o.def.id === struck!.at)!;
+    const load = rig.load.name.toUpperCase(), where = op.def.name;
+    const n = sessionStrikes;
+    const lane = op.spans.find((s) => s.lane && rig.trailerBody.translation().x >= s.min && rig.trailerBody.translation().x <= s.max);
+    const posted = lane ? `${lane.clearance.toFixed(2)} M` : 'POSTED';
+    const hits = (ledger.byBridge[op.def.id] ?? 0) + 1;
+    const headlines = [
+      `${load} MEETS ${where} OVERPASS. OVERPASS WINS.`,
+      `${where}: ${ordinal(hits)} STRIKE ON RECORD${hits > 1 ? ', AND COUNTING' : ''}`,
+      `${load} HITS ${where} AT ${Math.round(struck!.speedKmh)} KM/H`,
+    ];
+    ui.showNews(headlines[n % headlines.length], [
+      `CITY TAB SO FAR: ${fmt$(ledger.total)} BEFORE TODAY'S BILL`,
+      `SIGN ON ${where} STILL READS ${posted}; SIGN "STANDS BY IT"`,
+      `ENGINEERS: "WE PAINTED THE NUMBER RIGHT ON THE BRIDGE"`,
+      `STRIKES THIS SESSION: ${n}`,
+      'WEATHER: CLEAR, WITH A CHANCE OF GIRDER',
+      `${load} OPERATOR "DIDN'T THINK IT WAS THAT TALL"`,
+      'DETOUR IN EFFECT VIA IDYLWYLD DRIVE',
+      'TOW TRUCK ON SCENE REPORTS ALSO BEING TALL',
+    ]);
   };
   ui.onSkipReplay = () => endReplay();
   const advance = (realDt: number) => {
@@ -494,12 +587,21 @@ export async function startSim(opts: SimOptions) {
       seq.live += realDt;
       if (seq.live >= LIVE_SECS) {
         seq.stage = 'replay';
+        seq.seg = 0;
         seq.replayT = Math.max(history[0]?.t ?? 0, seq.t0 - REPLAY_FROM);
+        ui.setReplayLabel(REPLAYS[0].label);
         ui.setReplay(true);
+        startNews();
       }
     } else if (seq?.stage === 'replay') {
-      seq.replayT += realDt * REPLAY_RATE;
-      if (seq.replayT >= seq.t0 + REPLAY_TO) endReplay();
+      seq.replayT += realDt * REPLAYS[seq.seg].rate;
+      if (seq.replayT >= seq.t0 + REPLAY_TO) {
+        if (seq.seg + 1 < REPLAYS.length) {
+          seq.seg++;
+          seq.replayT = Math.max(history[0]?.t ?? 0, seq.t0 - REPLAY_FROM);
+          ui.setReplayLabel(REPLAYS[seq.seg].label);
+        } else endReplay();
+      }
       return; // the world holds still while the replay plays
     }
     acc += realDt;
@@ -559,6 +661,8 @@ export async function startSim(opts: SimOptions) {
     rig: () => rig, world, scene, camera, renderer, TUNE, overpasses, LOADS,
     reset, setCam: (m: CamMode) => { camMode = m; snapCamera = true; }, setTime,
     clearProgress: () => saveProgress(0),
+    audio: () => ({ state: audioState(), rpm: engine.rpm, gear: engine.gear + 1, muted: isMuted(), music: music.loaded }),
+    ledger: () => ({ ...ledger }),
   };
 
   requestAnimationFrame(frame);

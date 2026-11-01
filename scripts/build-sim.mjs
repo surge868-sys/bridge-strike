@@ -11,6 +11,8 @@ const ASSETS = [
   ...fs.readdirSync(path.join(pub, 'models')).filter((f) => f.endsWith('.glb')).map((f) => `models/${f}`),
   ...fs.readdirSync(path.join(pub, 'textures')).map((f) => `textures/${f}`),
   ...fs.readdirSync(path.join(pub, 'fonts')).map((f) => `fonts/${f}`),
+  // Optional music (docs/MUSIC.md): whatever is listed in music/tracks.json and present.
+  ...(fs.existsSync(path.join(pub, 'music')) ? fs.readdirSync(path.join(pub, 'music')).map((f) => `music/${f}`) : []),
 ];
 
 const result = await build({
