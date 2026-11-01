@@ -42,13 +42,13 @@ if (!process.argv.includes('--og-only')) {
   // 1. title over the attract orbit
   await hold(2.5);
   // 2. the twin hopper bins: lower and switch lanes at the first overpass
-  await page.evaluate(() => { window.__simDebug.reset({ load: 4, rolling: true }); window.__simDebug.setTime('golden'); window.__simDebug.setCam('chase'); });
+  await page.evaluate(async () => { window.__simDebug.setTime('golden'); window.__simDebug.setCam('chase'); await window.__simDebug.reset({ load: 4, rolling: true }); });
   for (let i = 0; i < 7 * FPS; i++) { await drive(); await frame(); }
   // 3. cockpit through the next one
   await page.evaluate(() => window.__simDebug.setCam('cockpit'));
   for (let i = 0; i < 3 * FPS; i++) { await drive(); await frame(); }
   // 4. dusk, and the track hoe takes the wrong lane: strike, replays, chyron, bill
-  await page.evaluate(() => { window.__simDebug.setTime('dusk'); window.__simDebug.reset({ load: 0, z: 790, rolling: true }); window.__simDebug.setCam('chase'); });
+  await page.evaluate(async () => { window.__simDebug.setTime('dusk'); window.__simDebug.setCam('chase'); await window.__simDebug.reset({ load: 0, z: 790, rolling: true }); });
   let phase = 'drive';
   for (let i = 0; i < 12 * FPS && phase === 'drive'; i++) {
     await drive({ force: { lane: 'RIGHT', lower: false }, speed: 75 });
@@ -59,7 +59,7 @@ if (!process.argv.includes('--og-only')) {
   for (let i = 0; i < 9.5 * FPS; i++) await frame(); // live hit, side replay, chopper, card
   await hold(1.5);
   // 5. back to the title
-  await page.evaluate(() => { window.__simDebug.setTime('golden'); window.__simDebug.reset({ load: 0 }); window.__simDebug.showTitle(); });
+  await page.evaluate(async () => { window.__simDebug.setTime('golden'); await window.__simDebug.reset({ load: 0 }); window.__simDebug.showTitle(); });
   await hold(2.5);
 
   const out = path.join(root, 'media/trailer.mp4');
@@ -69,7 +69,7 @@ if (!process.argv.includes('--og-only')) {
 }
 
 // Link preview: a golden-hour drone frame at the first overpass with the logo.
-await page.evaluate(() => { window.__simDebug.hideTitle?.(); window.__simDebug.setTime('golden'); window.__simDebug.reset({ load: 2, z: 740, x: 9.85 }); window.__simDebug.setCam('drone'); });
+await page.evaluate(async () => { window.__simDebug.hideTitle(); window.__simDebug.setTime('golden'); window.__simDebug.setCam('drone'); await window.__simDebug.reset({ load: 2, z: 740, x: 9.85 }); });
 await page.evaluate(() => window.__simStep(1.5));
 await page.evaluate(() => { for (let i = 0; i < 8; i++) window.__simFrame(0.1); });
 const og = await page.evaluate(() => window.__simDebug.ogImage());

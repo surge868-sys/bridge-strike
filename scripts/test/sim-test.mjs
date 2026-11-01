@@ -183,6 +183,18 @@ try {
   // --- screenshots: approach, rail bridge, drone, strike and delivery cards
   {
     const { page, ctx, errors } = await openSim(browser, DESKTOP);
+    // Frames keep rendering while a new load's model loads; they must never touch the old rig.
+    const swap = await page.evaluate(async () => {
+      try {
+        const p = window.__simDebug.reset({ load: 2 });
+        for (let i = 0; i < 4; i++) window.__simFrame(0.016);
+        await p;
+        window.__simFrame(0.016);
+        return window.__sim().load;
+      } catch (e) { return 'threw: ' + e; }
+    });
+    check('switching loads while frames render never touches the removed rig', swap === 'Heavy equipment', `result ${swap}`);
+    await page.evaluate(() => window.__simDebug.reset({ load: 0 }));
     await page.evaluate(() => window.__simStep(2));
     await shot(page, 'desktop-chase-start');
     await page.evaluate(() => window.__simDebug.setCam('cockpit'));

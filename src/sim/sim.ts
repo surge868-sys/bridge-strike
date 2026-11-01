@@ -251,12 +251,18 @@ export async function startSim(opts: SimOptions) {
     rig.calibrate();
   };
 
+  let resetToken = 0;
   const reset = async (o: { load?: number; x?: number; z?: number; phase?: Phase; rolling?: boolean } = {}) => {
     if (o.load !== undefined) loadIndex = o.load;
+    const def = LOADS[loadIndex];
+    // Load first, then swap rigs in one synchronous step: frames keep rendering
+    // during the await and must never see a destroyed rig. A newer reset wins.
+    const token = ++resetToken;
+    const loadModel = await getLoad(def);
+    if (token !== resetToken) return;
     rig?.destroy();
     buildRoute(loadIndex);
-    const def = LOADS[loadIndex];
-    rig = new Rig(world, scene, { tractor: tractor.clone(), trailer: trailer.clone(), wheel, load: await getLoad(def) }, def, { x: o.x ?? START.x, z: o.z ?? START.z });
+    rig = new Rig(world, scene, { tractor: tractor.clone(), trailer: trailer.clone(), wheel, load: loadModel }, def, { x: o.x ?? START.x, z: o.z ?? START.z });
     attachLenses();
     settle();
     if (o.rolling) rig.launch(ROLL_KMH / 3.6);
