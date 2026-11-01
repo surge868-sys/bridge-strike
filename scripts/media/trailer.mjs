@@ -62,9 +62,14 @@ if (!process.argv.includes('--og-only')) {
   await page.evaluate(async () => { window.__simDebug.setTime('golden'); await window.__simDebug.reset({ load: 0 }); window.__simDebug.showTitle(); });
   await hold(2.5);
 
+  // Score (scripts/media/trailer-music.py, timed to the cuts above), then picture + sound.
   const out = path.join(root, 'media/trailer.mp4');
-  execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(FPS), '-i', path.join(frames, 'f%05d.jpg'),
-    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '30', '-preset', 'slow', '-vf', 'scale=960:-2', '-movflags', '+faststart', out]);
+  const wav = path.join(root, 'test-results/trailer-music.wav');
+  execFileSync('python3', ['-I', path.join(root, 'scripts/media/trailer-music.py'), wav, (n / FPS).toFixed(2)]);
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', wav, '-c:a', 'libmp3lame', '-b:a', '160k', path.join(root, 'media/trailer-music.mp3')]);
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(FPS), '-i', path.join(frames, 'f%05d.jpg'), '-i', wav,
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '30', '-preset', 'slow', '-vf', 'scale=960:-2',
+    '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11', '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-shortest', '-movflags', '+faststart', out]);
   console.log(`${out}: ${n} frames, ${(fs.statSync(out).size / 1048576).toFixed(1)} MB`);
 }
 

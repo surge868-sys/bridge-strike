@@ -219,3 +219,10 @@ Because downloads are blocked, M0 can only do the concept sheets until the hosts
 - **Bug found and fixed**: switching loads could crash the game loop (frames rendered
   during the new model's load touched the old rig's removed bodies). Regression test
   added.
+- **Trailer score** (added after M5): fal was still out of credits, so
+  `scripts/media/trailer-music.py` composes and synthesizes it: 132 BPM trucker rock in
+  E with Karplus-Strong guitars (oversampled so the notes stay in tune), synthesized
+  train-beat drums, a minor chug and riser for the dusk run, a crash on the impact
+  (17.2 s), a drone and sad trombone under the replays, a honky-tonk piano tag on the
+  bill card, and the riff and ending chord on the title. Loudness-normalized to -14
+  LUFS. `media/trailer-music.mp3` is the score alone.
