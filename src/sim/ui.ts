@@ -1,6 +1,7 @@
 // DOM overlay: road-sign HUD, touch controls, outcome cards. Plain DOM + injected
 // CSS so the single-file build needs no framework.
 import type { LoadDef } from './loads';
+import { logoCanvas } from './brand';
 
 export interface TouchState {
   steer: number;
@@ -62,8 +63,8 @@ const CSS = `
 .bs-card table{width:100%;border-collapse:collapse;font:500 14px Oswald,sans-serif;text-align:left}
 .bs-card td{padding:3px 0;border-bottom:1px dashed #bbb}.bs-card td:last-child{text-align:right;white-space:nowrap}
 .bs-card tr.total td{border-bottom:none;font:700 18px Oswald,sans-serif;padding-top:8px}
-.bs-card .btns{display:flex;gap:8px;justify-content:center;margin-top:12px}.bs-card .go.alt{background:#fff;color:#111;border:2px solid #111}.bs-card.delivered h1{color:#0b6b3a}
-.bs-card .go{display:inline-block;background:#111;color:#fff;font:22px Anton,Impact,sans-serif;padding:8px 22px;border-radius:10px;cursor:pointer;border:none}
+.bs-card .btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}.bs-card .go.alt{background:#fff;color:#111;border:2px solid #111}.bs-card.delivered h1{color:#0b6b3a}
+.bs-card .go{display:inline-block;background:#111;color:#fff;font:21px Anton,Impact,sans-serif;padding:8px 15px;border-radius:10px;cursor:pointer;border:none}
 .bs-replay{position:absolute;inset:0;display:none;pointer-events:auto;z-index:3;cursor:pointer}
 .bs-replay .tag{position:absolute;left:50%;top:max(150px,22%);transform:translateX(-50%);background:#111;color:#fff;border:3px solid #fff;border-radius:8px;padding:4px 14px 2px;font:30px Anton,Impact,sans-serif;letter-spacing:.06em}
 .bs-replay .tag i{display:inline-block;width:14px;height:14px;border-radius:50%;background:#e23b2e;margin-right:10px;vertical-align:4px;animation:bsblink 1s steps(2) infinite}
@@ -81,6 +82,20 @@ const CSS = `
 @media (max-width:560px){.bs-mute{top:max(84px,calc(env(safe-area-inset-top) + 76px))}}
 .bs-dispatch .tab{font:700 12px Oswald,sans-serif;letter-spacing:.1em;color:#d22;margin:0 0 8px}
 .bs-card table tr.tab td{color:#d22;font-weight:700}
+.bs-attract>:not(.bs-title){visibility:hidden}
+.bs-title{position:absolute;inset:0;z-index:5;pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(22,19,15,.55) 0%,rgba(22,19,15,0) 40%,rgba(22,19,15,0) 60%,rgba(22,19,15,.75) 100%);padding:max(18px,env(safe-area-inset-top)) 16px max(18px,env(safe-area-inset-bottom));text-align:center;color:#fff;font-family:Oswald,sans-serif}
+.bs-title canvas{max-width:92vw;height:auto!important;filter:drop-shadow(0 6px 18px rgba(0,0,0,.45))}
+.bs-title .tag{font:500 18px/1.35 Oswald,sans-serif;text-shadow:0 1px 4px #000;max-width:520px}
+.bs-title .start{font:34px Anton,Impact,sans-serif;letter-spacing:.04em;background:#f2c200;color:#16130f;border:3px solid #16130f;border-radius:10px;padding:8px 26px 6px;margin:14px 0 10px;animation:bspulse 1.4s ease-in-out infinite}
+.bs-title .fine{font:500 11px/1.4 Oswald,sans-serif;color:#ddd;text-shadow:0 1px 3px #000;max-width:560px}
+@keyframes bspulse{50%{transform:scale(1.06)}}
+@media (max-height:480px){.bs-title canvas{max-height:46vh;width:auto!important}.bs-title .start{font-size:26px;margin:6px 0}}
+.bs-share{position:absolute;inset:0;z-index:6;background:rgba(10,8,6,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:auto;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+.bs-share img{max-width:min(92vw,460px);max-height:68vh;border:3px solid #fff;border-radius:8px;-webkit-touch-callout:default;user-select:auto}
+.bs-share .btns{display:flex;gap:8px}
+.bs-share button{font:22px Anton,Impact,sans-serif;padding:8px 18px;border-radius:8px;border:2px solid #fff;background:#f2c200;color:#16130f;cursor:pointer}
+.bs-share button.alt{background:transparent;color:#fff}
+.bs-share .hint{color:#ddd;font:500 12px Oswald,sans-serif}
 .bs-toast{position:absolute;left:50%;top:32%;transform:translateX(-50%);background:#0b6b3a;color:#fff;border:3px solid #fff;border-radius:10px;padding:8px 18px;font:34px Anton,Impact,sans-serif;opacity:0;transition:opacity .3s}
 .bs-toast.show{opacity:1}
 .bs-strip{position:absolute;left:0;right:0;bottom:0;background:#111;color:#fff;font:600 13px Oswald,sans-serif;padding:8px 12px;text-align:center;pointer-events:auto;z-index:5}
@@ -134,6 +149,59 @@ export class UI {
   onDispatch: (next?: number) => void = () => {};
   onSkipReplay: () => void = () => {};
   onMute: () => void = () => {};
+  onShare: () => void = () => {};
+  private title: HTMLElement | null = null;
+
+  /** Title screen over the attract camera; any tap or key starts. */
+  showTitle(onStart: () => void) {
+    const el = document.createElement('div');
+    el.className = 'bs-title';
+    el.innerHTML = `<div class="logo"></div><div><div class="tag">Five real 2026 loads. Six Saskatoon overpasses. Read the plates, lower the deck, pick your lane.</div>
+      <div class="start">${this.touchMode ? 'TAP TO START' : 'PRESS ANY KEY'}</div>
+      <div class="fine">Inspired by the real 2026 Saskatoon bridge strikes. Places are real; every company, driver and newscast is made up.</div></div>`;
+    el.querySelector('.logo')!.appendChild(logoCanvas(Math.min(560, window.innerWidth * 0.9)));
+    el.addEventListener('pointerdown', (e) => { e.preventDefault(); onStart(); });
+    this.root.appendChild(el);
+    this.root.classList.add('bs-attract');
+    this.title = el;
+  }
+
+  hideTitle() {
+    this.title?.remove();
+    this.title = null;
+    this.root.classList.remove('bs-attract');
+  }
+
+  get titleUp() {
+    return !!this.title;
+  }
+
+  /** Share sheet: the card image, plus native share where the browser has it. */
+  showShare(card: HTMLCanvasElement, filename: string, text: string) {
+    const el = document.createElement('div');
+    el.className = 'bs-share';
+    const url = card.toDataURL('image/png');
+    el.innerHTML = `<img alt="Share card"><div class="btns"><button class="sh">SHARE</button><button class="sv">SAVE</button><button class="alt cl">CLOSE</button></div><div class="hint">Or press and hold the picture to save it.</div>`;
+    (el.querySelector('img') as HTMLImageElement).src = url;
+    const close = () => el.remove();
+    el.querySelector('.cl')!.addEventListener('click', close);
+    el.querySelector('.sv')!.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+    const shareBtn = el.querySelector('.sh') as HTMLButtonElement;
+    card.toBlob((blob) => {
+      const file = blob ? new File([blob], filename, { type: 'image/png' }) : null;
+      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+      if (!file || !nav.share || !nav.canShare?.({ files: [file] })) { shareBtn.style.display = 'none'; return; }
+      shareBtn.addEventListener('click', () => { nav.share({ files: [file], text }).catch(() => {}); });
+    }, 'image/png');
+    this.root.appendChild(el);
+  }
   touchMode = false;
   private dispatch: { el: HTMLDivElement; roll: () => void } | null = null;
   private els: Record<string, HTMLElement> = {};
@@ -360,7 +428,7 @@ export class UI {
     this.showCard('strike', 'BRIDGE STRIKE!', `${info.load.name} vs. ${info.where} at ${Math.round(info.speedKmh)} km/h. ${rail ? 'Repair bill:' : 'City of Saskatoon repair bill:'}`,
       `<table>${rows.map(([n, v]) => `<tr><td>${n}</td><td>${fmt$(v)}</td></tr>`).join('')}<tr class="total"><td>TOTAL</td><td>${fmt$(total)}</td></tr>`
         + `<tr class="tab"><td>Running city tab · ${info.tab.strikes + 1} strike${info.tab.strikes ? 's' : ''}</td><td>${fmt$(info.tab.total + total)}</td></tr></table>`,
-      [['TRY AGAIN', () => this.onRestart()], ['DISPATCH', () => this.onDispatch()]]);
+      [['TRY AGAIN', () => this.onRestart()], ['DISPATCH', () => this.onDispatch()], ['SHARE', () => this.onShare()]]);
     return total;
   }
 
@@ -395,8 +463,8 @@ export class UI {
     ];
     const sub = o.next ? `${o.load.name} delivered to Saskatoon. Next up: ${o.next.name}, ${o.next.top.toFixed(2)} m.` : 'All five loads delivered. Every overpass in Saskatoon is still standing.';
     const buttons: [string, () => void][] = o.next
-      ? [['NEXT LOAD', () => this.onDispatch(o.nextIndex)], ['DRIVE IT AGAIN', () => this.onRestart()]]
-      : [['DISPATCH', () => this.onDispatch(0)], ['DRIVE IT AGAIN', () => this.onRestart()]];
+      ? [['NEXT LOAD', () => this.onDispatch(o.nextIndex)], ['DRIVE IT AGAIN', () => this.onRestart()], ['SHARE', () => this.onShare()]]
+      : [['DISPATCH', () => this.onDispatch(0)], ['DRIVE IT AGAIN', () => this.onRestart()], ['SHARE', () => this.onShare()]];
     this.showCard('delivered', 'LOAD DELIVERED', sub, `<table>${rows.map(([n, v]) => `<tr><td>${n}</td><td>${v}</td></tr>`).join('')}</table>`, buttons);
   }
 

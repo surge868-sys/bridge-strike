@@ -4,6 +4,7 @@
 // taken with __simFrame so every camera and phone layout gets looked at.
 import { launch, openSim, DESKTOP, PHONE, PHONE_LANDSCAPE, SHOTS } from './lib.mjs';
 import path from 'node:path';
+import fs from 'node:fs';
 
 const results = [];
 const check = (name, ok, detail) => {
@@ -102,6 +103,13 @@ try {
     const tab1 = await page.evaluate(() => window.__simDebug.ledger());
     const tabRow = card ? await page.textContent('.bs-card tr.tab') : '';
     check('strike plays live, side replay, chopper replay with the news chyron, then the bill', stages.join() === 'live,replay,replay,done' && labels[1] === 'REPLAY' && labels[2] === 'CHOPPER CAM' && card, `stages ${stages.join(' > ')}, news/labels ${labels.join(' > ')}, card ${card}`);
+    await page.evaluate(() => window.__simFrame(0.05));
+    await page.click('.bs-card .go:has-text("SHARE")');
+    const shareImg = await page.evaluate(() => { const i = document.querySelector('.bs-share img'); return i ? { w: i.naturalWidth, h: i.naturalHeight, src: i.src.length } : null; });
+    const cardJpg = await page.evaluate(() => window.__simDebug.shareCard());
+    if (cardJpg) fs.writeFileSync(path.join(SHOTS, 'share-card-strike.jpg'), Buffer.from(cardJpg.split(',')[1], 'base64'));
+    await page.click('.bs-share .cl');
+    check('SHARE builds a 1080x1350 card with the impact frame', shareImg?.w === 1080 && shareImg?.h === 1350 && shareImg.src > 200000, `share image ${JSON.stringify(shareImg)}`);
     check('damage ledger adds the bill to the running city tab', tab1.strikes === tab0.strikes + 1 && tab1.total > tab0.total && /Running city tab/.test(tabRow), `strikes ${tab0.strikes} -> ${tab1.strikes}, tab $${Math.round(tab0.total)} -> $${Math.round(tab1.total)}, row "${tabRow}"`);
 
     // rollover: hard in-lane swerves at speed
@@ -127,8 +135,13 @@ try {
 
   // --- dispatch sheet + real keyboard: rolling out focuses the framed game
   {
-    const { page, ctx, errors } = await openSim(browser, DESKTOP, '', { keepDispatch: true });
+    const { page, ctx, errors } = await openSim(browser, DESKTOP, '', { keepDispatch: true, keepTitle: true });
     await page.evaluate(() => window.__simStep(1));
+    const titled = await page.isVisible('.bs-title');
+    await shot(page, 'desktop-title');
+    await page.keyboard.press('Enter');
+    const pastTitle = !(await page.isVisible('.bs-title'));
+    check('title screen shows first; any key opens dispatch', titled && pastTitle && (await page.isVisible('.bs-dispatch')), `title ${titled}, gone after key ${pastTitle}`);
     const visible = await page.isVisible('.bs-dispatch');
     await shot(page, 'desktop-dispatch');
     await page.click('.bs-dispatch .roll');
@@ -214,8 +227,10 @@ try {
 
   // --- phone metrics: 390 CSS px at 2.77 DPR, portrait and landscape
   for (const [name, opts] of [['phone-portrait', PHONE], ['phone-landscape', PHONE_LANDSCAPE]]) {
-    const { page, ctx, errors } = await openSim(browser, opts, '?touch', { keepDispatch: true });
+    const { page, ctx, errors } = await openSim(browser, opts, '?touch', { keepDispatch: true, keepTitle: true });
     await page.evaluate(() => window.__simStep(1));
+    await shot(page, `${name}-title`);
+    await page.evaluate(() => window.__simDebug.skipTitle());
     await shot(page, `${name}-dispatch`);
     await page.evaluate(() => window.__simDebug.reset({ z: 520 }));
     await page.evaluate(() => window.__simStep(2));

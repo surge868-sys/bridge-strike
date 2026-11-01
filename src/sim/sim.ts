@@ -5,6 +5,7 @@ import { loadModel, loadTexture, loadFonts } from './assets';
 import { buildWorld, buildCityLimits, LANES } from './world';
 import { buildOverpass, destroyOverpass, routeFor, Overpass, ROUTE, START_Z, DELIVERY_Z } from './bridges';
 import { StrikeFx } from './strike';
+import { shareCard, ogCard, ShareInfo } from './brand';
 import { unlockAudio, playStrike, Engine, Music, setMuted, isMuted, audioState } from './audio';
 import { Rig, RigControls, TUNE } from './rig';
 import { LOADS, LOWER_BY, LoadDef } from './loads';
@@ -212,6 +213,18 @@ export async function startSim(opts: SimOptions) {
   const history: Pose[] = [];
   let seq: null | { t0: number; stage: 'live' | 'replay' | 'done'; live: number; replayT: number; seg: number; impact: THREE.Vector3; side: number } = null;
   const ledger = readLedger();
+  // A frame grabbed for the share card: the impact in the replay, or the delivery.
+  let shot: HTMLCanvasElement | null = null;
+  let wantShot = false;
+  let shareInfo: ShareInfo | null = null;
+  const grabShot = () => {
+    const src = renderer.domElement;
+    const c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = src.height;
+    c.getContext('2d')!.drawImage(src, 0, 0);
+    shot = c;
+  };
   let sessionStrikes = 0;
   const engine = new Engine();
   const music = new Music();
@@ -252,6 +265,8 @@ export async function startSim(opts: SimOptions) {
     rolledFor = lowerings = topSpeed = 0;
     seq = null;
     shake = 0;
+    shot = null;
+    shareInfo = null;
     history.length = 0;
     fx.clear();
     ui.setReplay(false);
@@ -261,6 +276,7 @@ export async function startSim(opts: SimOptions) {
     wasLowering = false;
     struck = null;
     ui.hideCard();
+    ui.hideTitle();
     snapCamera = true;
   };
 
@@ -295,6 +311,7 @@ export async function startSim(opts: SimOptions) {
   const focusGame = () => { try { window.focus(); renderer.domElement.focus({ preventScroll: true }); } catch { /* ignore */ } };
   container.addEventListener('pointerdown', () => { focusGame(); unlockAudio(); });
   window.addEventListener('keydown', (e) => {
+    if (ui.titleUp) { e.preventDefault(); startFromTitle(); return; }
     keys.add(e.code);
     if (phase === 'dispatch' && ['Enter', 'Space', 'KeyW', 'ArrowUp'].includes(e.code)) ui.rollOut();
     if (phase === 'dispatch' && ['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD'].includes(e.code)) ui.dispatchMove?.(e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 1);
@@ -309,6 +326,12 @@ export async function startSim(opts: SimOptions) {
   window.addEventListener('blur', () => keys.clear());
   ui.onCam = () => cycleCam();
   ui.onMute = () => { unlockAudio(); toggleMute(); };
+  ui.onShare = () => {
+    if (!shareInfo) return;
+    if (!shot) grabShot();
+    const card = shareCard(shot, shareInfo);
+    ui.showShare(card, shareInfo.kind === 'strike' ? 'bridge-strike.png' : 'load-delivered.png', shareInfo.kind === 'strike' ? `I hit ${shareInfo.sub.split(' vs. ')[1]}. BRIDGE STRIKE!` : `${shareInfo.sub}. BRIDGE STRIKE!`);
+  };
   ui.onRestart = () => void reset({ rolling: true });
   ui.onDispatch = (next) => { void reset({ load: next ?? loadIndex, phase: 'dispatch' }).then(() => openDispatch(next ?? loadIndex)); };
 
@@ -387,15 +410,35 @@ export async function startSim(opts: SimOptions) {
         if (loadIndex + 1 > readProgress()) saveProgress(loadIndex + 1);
         ledger.deliveries++;
         saveLedger(ledger);
+        wantShot = true;
+        const mmss = `${Math.floor(driveTime / 60)}:${String(Math.floor(driveTime % 60)).padStart(2, '0')}`;
+        shareInfo = {
+          kind: 'delivered',
+          headline: 'LOAD DELIVERED',
+          sub: `${rig.load.name}, ${rig.load.top.toFixed(2)} m, into Saskatoon`,
+          rows: [['Overpasses cleared', `6 of 6`], ['Time', mmss], ['Times lowered', String(lowerings)], ['Repair bill', '$0']],
+        };
         ui.showDelivered({ load: rig.load, time: driveTime, lowerings, topSpeed, next: LOADS[loadIndex + 1], nextIndex: loadIndex + 1 });
       }
     }
   };
 
   // --- camera
+  let attractT = 0;
   const camPos = new THREE.Vector3();
   const camLook = new THREE.Vector3();
   const updateCamera = (dt: number) => {
+    if (ui.titleUp) {
+      // Attract mode: a slow orbit around the parked rig.
+      const t = rig.tractorBody.translation();
+      attractT += dt;
+      const a = attractT * 0.12 + 2.2;
+      camera.position.set(t.x + Math.cos(a) * 21, t.y + 5.5, t.z + 6 + Math.sin(a) * 21);
+      camera.lookAt(t.x, t.y + 2.4, t.z + 6);
+      if (camera.near !== 0.3) { camera.near = 0.3; camera.updateProjectionMatrix(); }
+      snapCamera = true;
+      return;
+    }
     if (seq?.stage === 'replay') {
       const k = (seq.replayT - (seq.t0 - REPLAY_FROM)) / (REPLAY_FROM + REPLAY_TO);
       const p = seq.impact;
@@ -539,6 +582,8 @@ export async function startSim(opts: SimOptions) {
         : { title: 'DELIVERY', name: 'SASKATOON CITY LIMITS', distance: frontZ - DELIVERY_Z, lanes: [], currentLane: null },
     });
     if (post) post.render(); else renderer.render(scene, camera);
+    if (seq?.stage === 'replay' && seq.seg === 0 && !shot && seq.replayT >= seq.t0 + 0.12) grabShot();
+    if (wantShot) { wantShot = false; grabShot(); }
   };
 
   // --- loop
@@ -548,11 +593,18 @@ export async function startSim(opts: SimOptions) {
   const endReplay = () => {
     if (!seq || seq.stage === 'done') return;
     seq.stage = 'done';
+    if (!shot) wantShot = true; // replay skipped before the impact frame
     ui.setReplay(false);
     ui.hideNews();
     snapCamera = true;
     const op = overpasses.find((o) => o.def.id === struck!.at)!;
     const bill = ui.showStrike({ where: op.def.name, kind: op.def.kind, speedKmh: struck!.speedKmh, load: rig.load, tab: ledger });
+    shareInfo = {
+      kind: 'strike',
+      headline: 'BRIDGE STRIKE!',
+      sub: `${rig.load.name} vs. ${op.def.name} at ${Math.round(struck!.speedKmh)} km/h`,
+      rows: [['Repair bill', fmt$(bill)], ['Overpasses cleared first', `${cleared} of ${overpasses.length}`], ['Running city tab', fmt$(ledger.total + bill)]],
+    };
     ledger.total += bill;
     ledger.strikes++;
     ledger.byBridge[op.def.id] = (ledger.byBridge[op.def.id] ?? 0) + 1;
@@ -618,7 +670,13 @@ export async function startSim(opts: SimOptions) {
   };
 
   await reset({ load: 0, phase: 'dispatch' });
-  openDispatch(0);
+  const startFromTitle = () => {
+    if (!ui.titleUp) return;
+    ui.hideTitle();
+    unlockAudio();
+    openDispatch();
+  };
+  ui.showTitle(startFromTitle);
 
   // --- test hooks
   const state = () => {
@@ -661,6 +719,11 @@ export async function startSim(opts: SimOptions) {
     rig: () => rig, world, scene, camera, renderer, TUNE, overpasses, LOADS,
     reset, setCam: (m: CamMode) => { camMode = m; snapCamera = true; }, setTime,
     clearProgress: () => saveProgress(0),
+    skipTitle: () => startFromTitle(),
+    showTitle: () => { ui.hideCard(); ui.showTitle(startFromTitle); },
+    hideTitle: () => ui.hideTitle(),
+    ogImage: () => { grabShot(); const c = ogCard(shot!); shot = null; return c.toDataURL('image/jpeg', 0.86); },
+    shareCard: () => { if (!shareInfo) return null; if (!shot) grabShot(); return shareCard(shot, shareInfo).toDataURL('image/jpeg', 0.85); },
     audio: () => ({ state: audioState(), rpm: engine.rpm, gear: engine.gear + 1, muted: isMuted(), music: music.loaded }),
     ledger: () => ({ ...ledger }),
   };

@@ -11,7 +11,9 @@
     "start": "next start",
     "build:sim": "node scripts/build-sim.mjs",
     "test:sim": "node scripts/test/sim-test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "media:trailer": "node scripts/media/trailer.mjs",
+    "assets:music": "scripts/assets/import-music.sh"
   },
   "engines": {
     "node": "22.x"
