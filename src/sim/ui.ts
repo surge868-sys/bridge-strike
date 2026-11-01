@@ -185,7 +185,21 @@ export class UI {
     (el.querySelector('img') as HTMLImageElement).src = url;
     const close = () => el.remove();
     el.querySelector('.cl')!.addEventListener('click', close);
-    el.querySelector('.sv')!.addEventListener('click', () => {
+    // Saving: inside the claude.ai artifact viewer a page can't download directly, so
+    // it goes through the viewer's `downloads` capability (the viewer confirms). On
+    // the website a plain download link works.
+    const saveBtn = el.querySelector('.sv') as HTMLButtonElement;
+    type Dl = { save(r: { filename: string; data: Blob }): Promise<unknown> } | null;
+    const host = (window as unknown as { claude?: { use(n: string): Promise<unknown> } }).claude;
+    const dl: Promise<Dl> | null = host ? (host.use('downloads') as Promise<Dl>).catch(() => null) : null;
+    if (dl) { saveBtn.style.display = 'none'; void dl.then((d) => { if (d) saveBtn.style.display = ''; }); }
+    saveBtn.addEventListener('click', async () => {
+      if (dl) {
+        const d = await dl;
+        const blob = await new Promise<Blob | null>((r) => card.toBlob(r, 'image/png'));
+        if (d && blob) d.save({ filename, data: blob }).catch(() => { /* declined or unavailable */ });
+        return;
+      }
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
