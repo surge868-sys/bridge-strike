@@ -249,26 +249,39 @@ export class Music {
 
   private async load() {
     const c = ctx!;
-    let listed: string[] = [];
+    // tracks.json lists the tracks present: ids, or {id, loop} with the exact loop
+    // length in seconds (the game's own loops from scripts/media/score.py).
+    let listed: (string | { id: string; loop?: number })[] = [];
     try { listed = JSON.parse(new TextDecoder().decode(await loadBytes('music/tracks.json'))); } catch { return; }
-    for (const id of TRACKS) {
-      if (!listed.includes(id)) continue;
+    const decoded: { id: TrackId; buf: AudioBuffer; loop?: number }[] = [];
+    for (const entry of listed) {
+      const id = (typeof entry === 'string' ? entry : entry.id) as TrackId;
+      if (!TRACKS.includes(id)) continue;
       try {
-        const bytes = await loadBytes(`music/${id}.mp3`);
-        const buf = await c.decodeAudioData(bytes);
-        const gain = c.createGain();
-        gain.gain.value = 0;
-        gain.connect(musicBus!);
-        const src = c.createBufferSource();
-        src.buffer = buf;
-        src.loop = true;
-        src.connect(gain);
-        src.start();
-        this.layers.set(id, { gain, src });
-        this.loaded.push(id);
-        this.apply();
-      } catch { /* track not supplied yet */ }
+        const buf = await c.decodeAudioData(await loadBytes(`music/${id}.mp3`));
+        decoded.push({ id, buf, loop: typeof entry === 'string' ? undefined : entry.loop });
+      } catch { /* track not supplied */ }
     }
+    // Start every layer on the same clock so cruise and tension stay on the beat.
+    const t0 = c.currentTime + 0.1;
+    for (const { id, buf, loop } of decoded) {
+      const gain = c.createGain();
+      gain.gain.value = 0;
+      gain.connect(musicBus!);
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      if (loop && loop < buf.duration) {
+        // A decoder that keeps the MP3 encoder's priming adds ~25 ms up front.
+        src.loopStart = Math.min(buf.duration - loop, 0.026);
+        src.loopEnd = src.loopStart + loop;
+      }
+      src.connect(gain);
+      src.start(t0, src.loopStart);
+      this.layers.set(id, { gain, src });
+      this.loaded.push(id);
+    }
+    this.apply();
   }
 
   /** Target mix, 0..1 per layer; crossfades over about a second. */

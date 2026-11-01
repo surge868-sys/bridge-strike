@@ -1,5 +1,19 @@
 # BRIDGE STRIKE! music
 
+The game and the trailer share one arrangement, `scripts/media/score.py`: 132 BPM
+trucker rock in E written as MIDI and played by sampled instruments (fluidsynth with the
+MIT-licensed FluidR3 General MIDI soundfont). Regenerate everything with:
+
+```
+apt-get install fluidsynth fluid-soundfont-gm   # once
+python3 -I scripts/media/score.py loops /tmp/loops
+for k in theme cruise tension; do ffmpeg -y -i /tmp/loops/$k.wav -ac 1 -b:a 56k public/music/$k.mp3; done
+```
+
+The loops are rendered twice through with the second pass kept, so they are seamless,
+and `public/music/tracks.json` records each loop's exact length, which the player uses
+for loop points. To replace them with produced tracks, use the Suno prompts below.
+
 Three looping tracks. The game mixes them live:
 
 | File | When it plays |

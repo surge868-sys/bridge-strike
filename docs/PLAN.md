@@ -219,10 +219,12 @@ Because downloads are blocked, M0 can only do the concept sheets until the hosts
 - **Bug found and fixed**: switching loads could crash the game loop (frames rendered
   during the new model's load touched the old rig's removed bodies). Regression test
   added.
-- **Trailer score** (added after M5): fal was still out of credits, so
-  `scripts/media/trailer-music.py` composes and synthesizes it: 132 BPM trucker rock in
-  E with Karplus-Strong guitars (oversampled so the notes stay in tune), synthesized
-  train-beat drums, a minor chug and riser for the dusk run, a crash on the impact
-  (17.2 s), a drone and sad trombone under the replays, a honky-tonk piano tag on the
-  bill card, and the riff and ending chord on the title. Loudness-normalized to -14
-  LUFS. `media/trailer-music.mp3` is the score alone.
+- **Score** (added after M5): fal was out of credits, and a first fully synthesized
+  attempt sounded too synthetic, so `scripts/media/score.py` writes the arrangement as
+  MIDI and renders it with fluidsynth + FluidR3 GM (sampled clean twang lead, muted and
+  steel-string guitars, finger bass, drum kit with a train beat, honky-tonk piano, brass
+  stabs, tremolo strings, timpani, orchestra hits, and a trombone for the sad
+  "wah-wah-waaah" under the replay). One arrangement makes both the trailer track (timed
+  to its cuts, loudness-normalized to -14 LUFS) and the game's three seamless loops:
+  theme (8 bars), cruise and tension (16 bars each, same grid, started on one clock so
+  the tension crossfade stays on the beat). About 500 KB of music in the game.

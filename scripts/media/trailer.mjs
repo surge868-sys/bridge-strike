@@ -62,10 +62,10 @@ if (!process.argv.includes('--og-only')) {
   await page.evaluate(async () => { window.__simDebug.setTime('golden'); await window.__simDebug.reset({ load: 0 }); window.__simDebug.showTitle(); });
   await hold(2.5);
 
-  // Score (scripts/media/trailer-music.py, timed to the cuts above), then picture + sound.
+  // Score (scripts/media/score.py, sampled instruments timed to the cuts above), then picture + sound.
   const out = path.join(root, 'media/trailer.mp4');
   const wav = path.join(root, 'test-results/trailer-music.wav');
-  execFileSync('python3', ['-I', path.join(root, 'scripts/media/trailer-music.py'), wav, (n / FPS).toFixed(2)]);
+  execFileSync('python3', ['-I', path.join(root, 'scripts/media/score.py'), 'trailer', wav, (n / FPS).toFixed(2)]);
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', wav, '-c:a', 'libmp3lame', '-b:a', '160k', path.join(root, 'media/trailer-music.mp3')]);
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(FPS), '-i', path.join(frames, 'f%05d.jpg'), '-i', wav,
     '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '30', '-preset', 'slow', '-vf', 'scale=960:-2',

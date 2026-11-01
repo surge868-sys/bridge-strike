@@ -166,6 +166,7 @@ try {
     const au2 = await page.evaluate(() => window.__simDebug.audio());
     await page.keyboard.press('KeyM');
     check('engine audio runs and follows the rig; M mutes', au.state === 'running' && au.rpm > 900 && au.gear >= 5 && au2.muted && !au.muted, `audio ${au.state}, ${Math.round(au.rpm)} rpm in gear ${au.gear}, M -> muted ${au2.muted}`);
+    check('music: theme, cruise and tension loops all decode and play', ['theme', 'cruise', 'tension'].every((t) => au.music.includes(t)), `loaded ${au.music.join(', ')}`);
     const cams = [];
     for (let k = 0; k < 3; k++) { await page.keyboard.press('KeyC'); cams.push((await page.evaluate(() => window.__sim())).camMode); }
     await page.keyboard.press('KeyT');
